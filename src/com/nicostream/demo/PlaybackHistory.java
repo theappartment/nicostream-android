@@ -12,7 +12,7 @@ final class PlaybackHistory {
     }
     static JSONObject source(JSONObject item)throws JSONException {
         JSONObject out=new JSONObject();
-        for(String k:new String[]{"id","title","url","addonId","seriesKey","isPlayable","sources","scAction","scTitleId","scEpisodeId","seasonNumber","episodeNumber","episodeName","seriesTitle","art","thumb","backdrop","description","year","tag","isWeb","isPlugin","mime"})
+        for(String k:new String[]{"id","title","url","isLive","addonId","seriesKey","isPlayable","sources","scAction","scTitleId","scEpisodeId","seasonNumber","episodeNumber","episodeName","seriesTitle","art","thumb","backdrop","description","year","tag","isWeb","isPlugin","mime"})
             if(item.has(k))out.put(k,item.get(k));
         return out;
     }
