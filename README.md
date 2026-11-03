@@ -57,3 +57,9 @@ Per compilare e verificare senza pubblicare, eseguire `python3 release.py`.
 - `release.py`: build e pubblicazione delle release ufficiali.
 
 Questo repository contiene il client Android. Il motore addon e l’app iOS sono mantenuti separatamente; i contratti del client restano compatibili con il progetto condiviso.
+
+## Opening and TV presentation (0.4.0)
+
+Startup shows a short, skippable NicoStream logo animation over the real Home. It respects disabled system animations. Startup no longer launches a Kodi/Stream4me root job; provider metadata and Program Feed load independently, and explicit addon browsing still uses the engine normally. The access-key screen remains available on unconfigured devices.
+
+Home shelves and catalog grids reserve space for scaled focused cards. Vertical focus navigation centers the active item within the content viewport, including the final row. Player controls keep their existing navigation.

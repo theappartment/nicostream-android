@@ -21,7 +21,8 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
-    final int BG=Color.rgb(9,17,24), PANEL=Color.rgb(19,31,40), MINT=Color.rgb(153,239,202), WHITE=Color.rgb(240,246,246), MUTED=Color.rgb(157,177,184);
+    final int BG=Color.rgb(7,11,17), PANEL=Color.rgb(18,24,33), MINT=Color.rgb(153,239,202), WHITE=Color.rgb(240,246,246), MUTED=Color.rgb(157,177,184);
+    AppOpening opening;
     final TvFocusNavigation tvFocus=new TvFocusNavigation();
     LinearLayout root,body,nav,transport;
     JSONArray items=new JSONArray();
@@ -95,7 +96,8 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);
         try{currentSeries=new JSONObject(prefs.getString("scLastTitle","{}"));}catch(Exception ignored){}
         try{if(prefs.getInt("discoverVersion",0)==1){discoverFeed=new JSONObject(prefs.getString("discoverFeed","{}"));discoverUpdated=0;}}catch(Exception ignored){}
-        localCatalog();if(prefs.getString("serverKey","").isEmpty())settings();else{refreshSourceIndex(true,null);home();loadRoot();}
+        localCatalog();items=new JSONArray();if(prefs.getString("serverKey","").isEmpty())settings();else{refreshSourceIndex(true,null);home();}
+        if(b==null){opening=new AppOpening(this);opening.show();}
     }
     String server(){return EngineAccess.SERVER;}
     void localCatalog(){try{items=new JSONObject(read(getAssets().open("catalog.json"))).getJSONArray("items");}catch(Exception e){items=new JSONArray();}}
@@ -122,16 +124,16 @@ public class MainActivity extends Activity {
     GradientDrawable bg(int color,int radius){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(radius));return d;}
     android.graphics.drawable.Drawable focus(){
         StateListDrawable d=new StateListDrawable();
-        GradientDrawable on=bg(Color.rgb(40,71,72),12);on.setStroke(dp(3),MINT);
+        GradientDrawable on=bg(Color.rgb(36,54,58),10);on.setStroke(dp(2),MINT);
         d.addState(new int[]{android.R.attr.state_focused},on);
-        GradientDrawable pressed=bg(Color.rgb(40,71,72),12);pressed.setStroke(dp(2),MINT);
-        d.addState(new int[]{android.R.attr.state_pressed},pressed);d.addState(new int[]{},bg(PANEL,12));return d;
+        GradientDrawable pressed=bg(Color.rgb(36,54,58),10);pressed.setStroke(dp(2),MINT);
+        d.addState(new int[]{android.R.attr.state_pressed},pressed);d.addState(new int[]{},bg(PANEL,10));return d;
     }
-    TextView text(String s,int size,int color){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);t.setPadding(0,dp(4),0,dp(4));return t;}
+    TextView text(String s,int size,int color){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);t.setFontFeatureSettings("kern");t.setIncludeFontPadding(false);t.setLineSpacing(dp(2),1.04f);t.setPadding(0,dp(4),0,dp(4));return t;}
     TextView title(String s,int size){TextView t=text(s,size,WHITE);t.setTypeface(Typeface.create("sans-serif-medium",0));return t;}
-    LinearLayout col(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);return l;}
+    LinearLayout col(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);l.setClipChildren(false);l.setClipToPadding(false);return l;}
     void space(LinearLayout l,int h){l.addView(new View(this),new LinearLayout.LayoutParams(1,dp(h)));}
-    TextView button(String label,Runnable action){TextView b=text(label,16,WHITE);b.setGravity(Gravity.CENTER);b.setPadding(dp(18),dp(12),dp(18),dp(12));b.setBackground(focus());b.setFocusable(true);b.setClickable(true);b.setOnClickListener(v->action.run());return b;}
+    TextView button(String label,Runnable action){TextView b=text(label,16,WHITE);b.setGravity(Gravity.CENTER);b.setPadding(dp(20),dp(13),dp(20),dp(13));b.setMinHeight(dp(46));b.setBackground(focus());b.setFocusable(true);b.setClickable(true);b.setOnClickListener(v->action.run());return b;}
     void base(){
         revealKey=KeyEvent.KEYCODE_UNKNOWN;
         if(heroPreview!=null){heroPreview.dispose();heroPreview=null;}
@@ -155,7 +157,7 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,dp(42));p.setMargins(0,0,dp(6),0);nav.addView(b,p);
         }
         menu.addView(nav);root.addView(menu);space(root,8);
-        ScrollView scroll=new ScrollView(this);body=col();scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+        ScrollView scroll=new CenteredScrollView(this);body=col();scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         if(section.equals("Scopri")){
             discoverBody=body;discoverScroll=scroll;renderDiscover();loadDiscover(false);refreshSourceIndex(false,null);loadProgramHome(false);if(updates!=null)updates.maybeCheck();scroll.post(()->scroll.scrollTo(0,discoverScrollY));
             root.post(()->{if(root.findFocus()==null)nav.getChildAt(0).requestFocus();});return;
@@ -191,7 +193,7 @@ public class MainActivity extends Activity {
             if(isScSearch(item))try{item.put("title","StreamingCommunity · Scegli un titolo").put("tag","TITOLI, STAGIONI E PUNTATE");}catch(Exception ignored){}
             if(seasons){count++;continue;}
             if(episodes){if(item.optBoolean("isNotice"))body.addView(button("ⓘ Informazioni",()->openItem(item)));else if(item.optBoolean("isFolder"))body.addView(button(item.optString("title"),()->openItem(item)));else body.addView(episodeRow(item));count++;continue;}
-            if(count%columns==0){row=new LinearLayout(this);body.addView(row);}
+            if(count%columns==0){row=new LinearLayout(this);row.setClipChildren(false);row.setClipToPadding(false);row.setPadding(0,dp(8),0,dp(8));body.addView(row);}
             View tile=card(item);LinearLayout.LayoutParams tileParams=new LinearLayout.LayoutParams(cardWidth,-2);
             tileParams.setMargins(0,0,(count%columns==columns-1)?0:gap,dp(12));row.addView(tile,tileParams);count++;
         }
@@ -291,7 +293,7 @@ public class MainActivity extends Activity {
         }
         JSONArray genres=discoverFeed==null?null:discoverFeed.optJSONArray("genres");String origin=providerOrigin();
         if(genres!=null&&!origin.isEmpty()){
-            body.addView(title("Esplora per genere",22));HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setHorizontalScrollBarEnabled(false);LinearLayout row=new LinearLayout(this);
+            body.addView(title("Esplora per genere",22));HorizontalScrollView scroll=tvShelf();scroll.setHorizontalScrollBarEnabled(false);LinearLayout row=new LinearLayout(this);row.setClipChildren(false);row.setClipToPadding(false);
             for(int i=0;i<genres.length();i++){JSONObject genre=genres.optJSONObject(i);if(genre==null||genre.optInt("id")<=0)continue;try{JSONObject item=new JSONObject().put("url",origin+"/it/archive?genre%5B%5D="+genre.getInt("id")).put("scAction","collection").put("title",genre.getString("name"));TextView tab=button(genre.getString("name"),()->scCatalog(item));LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-2,-2);gp.setMargins(0,dp(8),dp(10),dp(16));row.addView(tab,gp);}catch(Exception ignored){}}
             scroll.addView(row);body.addView(scroll);
         }
@@ -307,14 +309,18 @@ public class MainActivity extends Activity {
             TextureView trailer=new TextureView(this);trailer.setAlpha(0);trailer.setOpaque(false);trailer.setFocusable(false);trailer.setClickable(false);trailer.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);hero.addView(trailer,new FrameLayout.LayoutParams(-1,-1));heroPreview=new HeroPreview(this,hero,trailer,worker,preview,item.optString("previewReferer",providerOrigin()+"/it"),WebSettings.getDefaultUserAgent(this));
         }
         View shade=new View(this);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,new int[]{Color.argb(245,9,17,24),Color.argb(175,9,17,24),Color.argb(15,9,17,24)}));hero.addView(shade,new FrameLayout.LayoutParams(-1,-1));
-        LinearLayout copy=col();copy.setPadding(dp(24),dp(18),dp(24),dp(18));copy.setGravity(Gravity.CENTER_VERTICAL);copy.addView(text("IN EVIDENZA · "+item.optString("tag")+(item.optString("year").isEmpty()?"":" · "+item.optString("year")),11,MINT));TextView name=title(item.optString("title"),34);name.setMaxLines(2);copy.addView(name);
+        View bottomShade=new View(this);bottomShade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{Color.TRANSPARENT,BG}));FrameLayout.LayoutParams fade=new FrameLayout.LayoutParams(-1,dp(110),Gravity.BOTTOM);hero.addView(bottomShade,fade);
+        LinearLayout copy=col();copy.setPadding(dp(24),dp(18),dp(24),dp(18));copy.setGravity(Gravity.CENTER_VERTICAL);copy.addView(text("IN EVIDENZA · "+item.optString("tag")+(item.optString("year").isEmpty()?"":" · "+item.optString("year")),11,MINT));TextView name=title(item.optString("title"),40);name.setMaxLines(2);copy.addView(name);
         TextView plot=text(item.optString("description"),14,WHITE);plot.setMaxLines(2);plot.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(plot);space(copy,10);
         LinearLayout actions=new LinearLayout(this);TextView open=button("▶ Apri titolo",()->openItem(item));actions.addView(open);TextView favorite=button(isFavorite(item)?"✓ Nella mia lista":"＋ La mia lista",()->{toggleFavorite(item);home();});LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-2,-2);fp.setMargins(dp(10),0,0,0);actions.addView(favorite,fp);copy.addView(actions);
-        hero.addView(copy,new FrameLayout.LayoutParams(Math.min(dp(570),getResources().getDisplayMetrics().widthPixels-dp(52)),-1));body.addView(hero,new LinearLayout.LayoutParams(-1,dp(310)));space(body,20);
+        hero.addView(copy,new FrameLayout.LayoutParams(Math.min(dp(570),getResources().getDisplayMetrics().widthPixels-dp(52)),-1));body.addView(hero,new LinearLayout.LayoutParams(-1,dp(350)));space(body,20);
+    }
+    HorizontalScrollView tvShelf(){
+        HorizontalScrollView shelf=new HorizontalScrollView(this);shelf.setClipChildren(false);shelf.setClipToPadding(false);shelf.setPadding(dp(10),dp(12),dp(10),dp(12));shelf.setHorizontalScrollBarEnabled(false);return shelf;
     }
     void discoverRail(String label,JSONArray list,boolean ranked){
         if(list==null||list.length()==0)return;LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);heading.addView(title(label,22),new LinearLayout.LayoutParams(0,-2,1));heading.addView(button("Vedi tutti",()->{pushHistory();items=list;catalogTitle=label;section="Catalogo";focusItem="";home();}));body.addView(heading);space(body,8);
-        HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setClipToPadding(false);scroll.setPadding(dp(3),dp(3),dp(3),dp(3));scroll.setHorizontalScrollBarEnabled(false);LinearLayout row=new LinearLayout(this);
+        HorizontalScrollView scroll=tvShelf();scroll.setClipToPadding(false);scroll.setPadding(dp(10),dp(12),dp(10),dp(12));scroll.setHorizontalScrollBarEnabled(false);LinearLayout row=new LinearLayout(this);row.setClipChildren(false);row.setClipToPadding(false);
         for(int n=0;n<Math.min(12,list.length());n++){JSONObject item=list.optJSONObject(n);if(item==null)continue;row.addView(ranked?rankedCard(item,n+1):card(item));}
         scroll.addView(row);tvFocus.shelf(scroll,heading.getChildAt(1));scroll.setOnScrollChangeListener((View.OnScrollChangeListener)(v,x,y,oldX,oldY)->discoverRowOffsets.put(label,x));scroll.post(()->scroll.scrollTo(discoverRowOffsets.getOrDefault(label,0),0));body.addView(scroll);space(body,20);
     }
@@ -343,7 +349,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(dp(inset+posterWidth+8),dp(height+8));params.setMargins(0,0,dp(14),dp(12));card.setLayoutParams(params);return card;
     }
     void hero(JSONObject item){
-        LinearLayout h=col();h.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{Color.rgb(29,68,66),Color.rgb(22,35,46)}));h.setPadding(dp(24),dp(18),dp(24),dp(20));
+        LinearLayout h=col();h.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{Color.rgb(29,68,66),Color.rgb(22,35,46)}));h.setPadding(dp(28),dp(22),dp(28),dp(24));
         h.addView(text("IN EVIDENZA / "+item.optString("duration"),11,MINT));h.addView(title(item.optString("title"),30));
         TextView desc=text(item.optString("description"),14,WHITE);desc.setMaxLines(2);h.addView(desc);space(h,10);h.addView(button("▶ Scopri il film",()->openItem(item)),new LinearLayout.LayoutParams(-2,-2));body.addView(h);space(body,16);
     }
@@ -399,7 +405,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(width),-2);p.setMargins(0,0,dp(12),dp(12));c.setLayoutParams(p);return c;
     }
     View episodeRow(JSONObject item){
-        LinearLayout row=new LinearLayout(this);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(10),dp(10),dp(16),dp(10));focusCard(row,item);
+        LinearLayout row=new LinearLayout(this);row.setClipChildren(false);row.setClipToPadding(false);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(10),dp(10),dp(16),dp(10));focusCard(row,item);
         row.addView(artwork(item.optString("thumb"),150,84));LinearLayout copy=col();copy.setPadding(dp(18),0,dp(16),0);row.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
         copy.addView(title((item.optInt("episodeNumber")>0?String.format(Locale.ROOT,"%02d",item.optInt("episodeNumber"))+"   ":"")+item.optString("episodeName",item.optString("title")),18));TextView plot=text(item.optString("description"),13,MUTED);plot.setMaxLines(2);plot.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(plot);long resume=resumePosition(item);copy.addView(text(item.optString("tag")+(resume>0?" · Riprendi da "+time(resume):""),11,MINT));row.addView(text("▶",22,WHITE));
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,dp(10));row.setLayoutParams(p);return row;
@@ -552,22 +558,23 @@ public class MainActivity extends Activity {
         });
     }
     void details(JSONObject item){
-        selected=item;screen="details";base();ScrollView scroll=new ScrollView(this);LinearLayout content=col();scroll.addView(content);root.addView(scroll);
-        content.addView(button("‹ Torna al catalogo",this::home),new LinearLayout.LayoutParams(-2,-2));space(content,20);
-        content.addView(text(item.optString("tag"),12,MINT));content.addView(title(item.optString("title"),32));content.addView(text(item.optString("description"),17,MUTED));space(content,20);
-        TextView play=button("▶ Guarda ora",()->play(item));content.addView(play,new LinearLayout.LayoutParams(-2,-2));space(content,10);
-        content.addView(button(isFavorite(item)?"✓ Rimuovi dai preferiti":"＋ Aggiungi ai preferiti",()->{toggleFavorite(item);details(item);}),new LinearLayout.LayoutParams(-2,-2));play.requestFocus();
-    }
-    void loadRoot(){
-        if(server().isEmpty()){home();return;}
-        JSONObject item=new JSONObject();try{item.put("url","plugin://plugin.video.s4me/");item.put("title","Stream4me");}catch(Exception e){}action(item,true);
+        selected=item;screen="details";base();ScrollView scroll=new ScrollView(this);LinearLayout content=col();scroll.addView(content);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
+        content.addView(button("‹ Torna al catalogo",this::home),new LinearLayout.LayoutParams(-2,-2));space(content,28);
+        LinearLayout layout=new LinearLayout(this);layout.setGravity(Gravity.TOP);content.addView(layout);
+        String art=item.optString("art");if(art.startsWith("https://"))layout.addView(artwork(art,185,278));
+        LinearLayout copy=col();copy.setPadding(dp(30),dp(8),dp(24),dp(24));layout.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
+        TextView eyebrow=text(item.optString("tag")+(item.optString("year").isEmpty()?"":" · "+item.optString("year")),12,MINT);eyebrow.setLetterSpacing(.08f);copy.addView(eyebrow);space(copy,8);
+        copy.addView(title(item.optString("title"),38));space(copy,12);TextView description=text(item.optString("description"),16,MUTED);description.setMaxWidth(dp(650));copy.addView(description);space(copy,24);
+        LinearLayout actions=new LinearLayout(this);copy.addView(actions);TextView play=button("▶ Guarda ora",()->play(item));actions.addView(play,new LinearLayout.LayoutParams(-2,-2));
+        TextView favorite=button(isFavorite(item)?"✓ Nella mia lista":"＋ La mia lista",()->{toggleFavorite(item);details(item);});LinearLayout.LayoutParams favoriteParams=new LinearLayout.LayoutParams(-2,-2);favoriteParams.leftMargin=dp(12);actions.addView(favorite,favoriteParams);play.requestFocus();
     }
     void action(JSONObject item){action(item,false);}
     void action(JSONObject item,boolean isRoot){
         if(!currentJob.isEmpty())return;
         final long request=++generation;
-        screen="loading";base();root.addView(title(item.optString("title","Stream4me"),28));root.addView(text("Il motore sta elaborando la richiesta…",16,MUTED));
-        ProgressBar spinner=new ProgressBar(this);root.addView(spinner,new LinearLayout.LayoutParams(dp(48),dp(48)));space(root,18);root.addView(button("Annulla",()->{cancelJob();home();}),new LinearLayout.LayoutParams(-2,-2));
+        screen="loading";base();LinearLayout loading=col();loading.setGravity(Gravity.CENTER);root.addView(loading,new LinearLayout.LayoutParams(-1,0,1));
+        loading.addView(text("NICOSTREAM",12,MINT));space(loading,16);loading.addView(title(item.optString("title","Preparazione del catalogo"),28));space(loading,20);
+        ProgressBar spinner=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);spinner.setIndeterminate(true);spinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(MINT));loading.addView(spinner,new LinearLayout.LayoutParams(dp(220),dp(3)));space(loading,14);loading.addView(text("Un momento, stiamo preparando i contenuti",14,MUTED));space(loading,24);loading.addView(button("Annulla",()->{cancelJob();home();}),new LinearLayout.LayoutParams(-2,-2));
         worker.execute(()->{
             String job="";String lastDialog="";
             try{
@@ -655,7 +662,7 @@ public class MainActivity extends Activity {
     }
     void continueShelf(){
         JSONArray entries=PlaybackHistory.continuing(playbackHistory());if(entries.length()==0)return;
-        body.addView(title("Continua a guardare",22));space(body,8);HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setHorizontalScrollBarEnabled(false);LinearLayout shelf=new LinearLayout(this);
+        body.addView(title("Continua a guardare",22));space(body,8);HorizontalScrollView scroll=tvShelf();scroll.setHorizontalScrollBarEnabled(false);LinearLayout shelf=new LinearLayout(this);shelf.setClipChildren(false);shelf.setClipToPadding(false);
         for(int i=0;i<entries.length();i++){
             JSONObject entry=entries.optJSONObject(i),source=entry.optJSONObject("source");if(source==null)continue;long position=entry.optLong("position"),duration=entry.optLong("duration");
             LinearLayout card=col();card.setPadding(dp(10),dp(10),dp(10),dp(10));card.setBackground(focus());card.setFocusable(true);card.setClickable(true);card.setContentDescription("Riprendi "+source.optString("title"));card.setOnClickListener(v->resumeSource(source,position));
@@ -744,6 +751,7 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("Audio e sottotitoli").setItems(labels.toArray(new String[0]),(d,i)->{if(player!=null)actions.get(i).run();}).setNegativeButton("Chiudi",null).show();
     }
     @Override public boolean dispatchKeyEvent(KeyEvent e){
+        if(opening!=null&&opening.visible()){if(e.getAction()==KeyEvent.ACTION_DOWN)opening.dismiss();return true;}
         if(screen.equals("home")&&e.getAction()==KeyEvent.ACTION_DOWN&&getWindow().getDecorView().hasWindowFocus()&&tvFocus.move(root,getCurrentFocus(),e.getKeyCode()))return true;
         if(screen.equals("home")&&e.getAction()==KeyEvent.ACTION_DOWN&&e.getKeyCode()==KeyEvent.KEYCODE_MENU){View focused=getCurrentFocus();if(focused!=null&&focused.getTag() instanceof JSONObject){JSONObject item=(JSONObject)focused.getTag();if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")){toonActions(item);return true;}}}
         if(screen.equals("player")&&player!=null){
@@ -878,14 +886,14 @@ public class MainActivity extends Activity {
         content.addView(text(EngineAccess.SERVER,16,MINT));space(content,12);
         boolean authorized=!prefs.getString("serverKey","").isEmpty();
         content.addView(text(authorized?"Accesso salvato su questo dispositivo.":"Autorizza questo dispositivo una sola volta con la tua chiave di accesso.",15,MUTED));space(content,12);
-        if(authorized){content.addView(button("Ricarica catalogo",this::loadRoot));space(content,12);}
+        if(authorized){content.addView(button("Aggiorna la home",()->{section="Scopri";home();refreshSourceIndex(true,()->loadDiscover(true));loadProgramHome(true);}));space(content,12);}
         content.addView(button(authorized?"Modifica chiave di accesso":"Autorizza dispositivo",this::editEngineAccess));space(content,12);
         if(authorized)content.addView(button("‹ Torna al catalogo",this::home));
     }
     void editEngineAccess(){
         EditText key=new EditText(this);key.setSingleLine(true);key.setInputType(129);key.setSaveEnabled(false);key.setHint("Chiave privata NicoStream");key.setText(prefs.getString("serverKey",""));
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Accesso al dispositivo").setView(key).setPositiveButton("Salva",null).setNegativeButton("Annulla",null).create();
-        dialog.setOnShowListener(ignored->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{String value=key.getText().toString().trim();if(!value.matches("[a-f0-9]{64}")){key.setError("La chiave deve contenere 64 caratteri esadecimali");return;}prefs.edit().putString("serverKey",value).apply();dialog.dismiss();loadRoot();}));dialog.show();
+        dialog.setOnShowListener(ignored->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{String value=key.getText().toString().trim();if(!value.matches("[a-f0-9]{64}")){key.setError("La chiave deve contenere 64 caratteri esadecimali");return;}prefs.edit().putString("serverKey",value).apply();dialog.dismiss();refreshSourceIndex(true,null);home();}));dialog.show();
     }
 
     @Override public void onBackPressed(){if(screen.equals("web")){if(automaticEpisode!=null){automaticEpisode=null;home();}else if(webCustomView!=null)closeWebFullscreen();else if(browser!=null&&browser.canGoBack())browser.goBack();else home();}else if(screen.equals("loading")){cancelJob();home();}else if(screen.equals("player")){if(selected!=null&&(selected.optBoolean("localBrowserSession")||selected.optString("addonId").equals("plugin.video.nikod.toonitalia")||selected.optString("addonId").equals("plugin.video.nikod.programfeed")))home();else details(selected);}else if(!screen.equals("home")){home();}else if(!history.isEmpty()){previous();}else super.onBackPressed();}
