@@ -1,6 +1,6 @@
-Top 10 con la grafica della versione iPad.
+Navigazione con telecomando più prevedibile.
 
-- Numeri grandi con contorno grigio, parzialmente dietro le locandine.
-- Locandine verticali e spazio dedicato anche al numero 10.
-- Selezione con telecomando e lettura accessibile di posizione e titolo.
-- Sfondo trasparente e bordo di selezione visibile solo con il telecomando.
+- Sinistra e destra restano nella riga corrente, senza salti ad altre sezioni.
+- Su e giù seguono l’ordine delle righe e ricordano la scheda selezionata.
+- Vedi tutti è raggiungibile dopo l’ultima scheda della riga.
+- Menu, cataloghi, stagioni e puntate seguono lo stesso ordine esplicito.

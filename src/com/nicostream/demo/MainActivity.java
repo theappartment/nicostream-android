@@ -22,6 +22,7 @@ import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
     final int BG=Color.rgb(9,17,24), PANEL=Color.rgb(19,31,40), MINT=Color.rgb(153,239,202), WHITE=Color.rgb(240,246,246), MUTED=Color.rgb(157,177,184);
+    final TvFocusNavigation tvFocus=new TvFocusNavigation();
     LinearLayout root,body,nav,transport;
     JSONArray items=new JSONArray();
     String section="Scopri",screen="home",catalogTitle="Stream4me";
@@ -310,7 +311,7 @@ public class MainActivity extends Activity {
         if(list==null||list.length()==0)return;LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);heading.addView(title(label,22),new LinearLayout.LayoutParams(0,-2,1));heading.addView(button("Vedi tutti",()->{pushHistory();items=list;catalogTitle=label;section="Catalogo";focusItem="";home();}));body.addView(heading);space(body,8);
         HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setClipToPadding(false);scroll.setPadding(dp(3),dp(3),dp(3),dp(3));scroll.setHorizontalScrollBarEnabled(false);LinearLayout row=new LinearLayout(this);
         for(int n=0;n<Math.min(12,list.length());n++){JSONObject item=list.optJSONObject(n);if(item==null)continue;row.addView(ranked?rankedCard(item,n+1):card(item));}
-        scroll.addView(row);scroll.setOnScrollChangeListener((View.OnScrollChangeListener)(v,x,y,oldX,oldY)->discoverRowOffsets.put(label,x));scroll.post(()->scroll.scrollTo(discoverRowOffsets.getOrDefault(label,0),0));body.addView(scroll);space(body,20);
+        scroll.addView(row);tvFocus.shelf(scroll,heading.getChildAt(1));scroll.setOnScrollChangeListener((View.OnScrollChangeListener)(v,x,y,oldX,oldY)->discoverRowOffsets.put(label,x));scroll.post(()->scroll.scrollTo(discoverRowOffsets.getOrDefault(label,0),0));body.addView(scroll);space(body,20);
     }
     View rankedCard(JSONObject item,int rank){
         // Match iPad: an outlined number behind a 2:3 poster, with wider space for 10.
@@ -738,6 +739,7 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("Audio e sottotitoli").setItems(labels.toArray(new String[0]),(d,i)->{if(player!=null)actions.get(i).run();}).setNegativeButton("Chiudi",null).show();
     }
     @Override public boolean dispatchKeyEvent(KeyEvent e){
+        if(screen.equals("home")&&e.getAction()==KeyEvent.ACTION_DOWN&&getWindow().getDecorView().hasWindowFocus()&&tvFocus.move(root,getCurrentFocus(),e.getKeyCode()))return true;
         if(screen.equals("home")&&e.getAction()==KeyEvent.ACTION_DOWN&&e.getKeyCode()==KeyEvent.KEYCODE_MENU){View focused=getCurrentFocus();if(focused!=null&&focused.getTag() instanceof JSONObject){JSONObject item=(JSONObject)focused.getTag();if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")){toonActions(item);return true;}}}
         if(screen.equals("player")&&player!=null){
             int key=e.getKeyCode();
