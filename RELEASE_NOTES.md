@@ -1,5 +1,5 @@
-Icona iOS correttamente visibile sui launcher rotondi Google TV.
+Banner orizzontale corretto per Android TV.
 
-- Margine di sicurezza nel livello adattivo per mostrare interamente parentesi e asterisco.
-- Marchio originale iOS conservato senza modifiche all’immagine.
-- Banner Android TV e impostazioni conservati.
+- Risorsa effettiva 640 × 360 (16:9), con fondo nero esteso all’intero riquadro.
+- Marchio iOS centrato e proporzionato, senza bande laterali del launcher.
+- Icona rotonda Google TV invariata.

@@ -1,6 +1,1 @@
-<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
- <item><shape android:shape="rectangle"><solid android:color="#000000"/><size android:width="320dp" android:height="180dp"/></shape></item>
- <item android:width="320dp" android:height="320dp" android:gravity="center">
-  <bitmap android:src="@drawable/app_icon" android:gravity="fill"/>
- </item>
-</layer-list>
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android" android:src="@drawable/tv_banner" android:gravity="fill"/>
