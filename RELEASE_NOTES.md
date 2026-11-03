@@ -1,6 +1,6 @@
-Suggerimenti StreamingCommunity automatici all’avvio.
+Top 10 con la grafica della versione iPad.
 
-- Rimosso il messaggio che invitava ad aprire StreamingCommunity dal catalogo.
-- La home recupera automaticamente il dominio dall’indice aggiornato sulla VPS.
-- Se il collegamento iniziale fallisce, vengono tentati tre nuovi controlli automatici.
-- Riprova aggiorna direttamente sorgenti e suggerimenti, senza passaggi nel catalogo.
+- Numeri grandi con contorno grigio, parzialmente dietro le locandine.
+- Locandine verticali e spazio dedicato anche al numero 10.
+- Selezione con telecomando e lettura accessibile di posizione e titolo.
+- Sfondo trasparente e bordo di selezione visibile solo con il telecomando.

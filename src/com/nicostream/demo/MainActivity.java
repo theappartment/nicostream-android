@@ -309,8 +309,32 @@ public class MainActivity extends Activity {
     void discoverRail(String label,JSONArray list,boolean ranked){
         if(list==null||list.length()==0)return;LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);heading.addView(title(label,22),new LinearLayout.LayoutParams(0,-2,1));heading.addView(button("Vedi tutti",()->{pushHistory();items=list;catalogTitle=label;section="Catalogo";focusItem="";home();}));body.addView(heading);space(body,8);
         HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setClipToPadding(false);scroll.setPadding(dp(3),dp(3),dp(3),dp(3));scroll.setHorizontalScrollBarEnabled(false);LinearLayout row=new LinearLayout(this);
-        for(int n=0;n<Math.min(12,list.length());n++){JSONObject item=list.optJSONObject(n);if(item==null)continue;View card=card(item);if(ranked&&card instanceof LinearLayout){TextView rank=text(String.format(Locale.ROOT,"%02d",n+1)+"  NELLA TOP 10",11,MINT);((LinearLayout)card).addView(rank,0);}row.addView(card);}
+        for(int n=0;n<Math.min(12,list.length());n++){JSONObject item=list.optJSONObject(n);if(item==null)continue;row.addView(ranked?rankedCard(item,n+1):card(item));}
         scroll.addView(row);scroll.setOnScrollChangeListener((View.OnScrollChangeListener)(v,x,y,oldX,oldY)->discoverRowOffsets.put(label,x));scroll.post(()->scroll.scrollTo(discoverRowOffsets.getOrDefault(label,0),0));body.addView(scroll);space(body,20);
+    }
+    View rankedCard(JSONObject item,int rank){
+        // Match iPad: an outlined number behind a 2:3 poster, with wider space for 10.
+        int height=228,posterWidth=152,numberWidth=Math.round(height*(rank>=10?1.22f:.82f));
+        int inset=Math.round(numberWidth*.78f);
+        FrameLayout card=new FrameLayout(this);card.setPadding(dp(4),dp(4),dp(4),dp(4));focusCard(card,item);
+        StateListDrawable highlight=new StateListDrawable();GradientDrawable outline=bg(Color.TRANSPARENT,4);outline.setStroke(dp(2),MINT);highlight.addState(new int[]{android.R.attr.state_focused},outline);highlight.addState(new int[]{android.R.attr.state_pressed},outline);highlight.addState(new int[]{},bg(Color.TRANSPARENT,0));card.setBackground(highlight);
+        card.setContentDescription("Numero "+rank+": "+item.optString("title"));
+        View number=new View(this){
+            final android.graphics.Paint paint=new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            final android.graphics.Path glyph=new android.graphics.Path();
+            @Override protected void onDraw(android.graphics.Canvas canvas){
+                super.onDraw(canvas);String label=String.valueOf(rank);paint.setTypeface(Typeface.create("sans-serif",Typeface.BOLD));paint.setTextSize(100);
+                glyph.reset();paint.getTextPath(label,0,label.length(),0,0,glyph);glyph.op(glyph,android.graphics.Path.Op.UNION);android.graphics.RectF bounds=new android.graphics.RectF();glyph.computeBounds(bounds,true);
+                if(bounds.width()==0||bounds.height()==0)return;
+                float stroke=getResources().getDisplayMetrics().density*2.5f,scale=Math.min((getWidth()-stroke*2)/bounds.width(),(getHeight()-stroke*2)/bounds.height());
+                android.graphics.Matrix matrix=new android.graphics.Matrix();matrix.setScale(scale,scale);matrix.postTranslate((getWidth()-bounds.width()*scale)/2-bounds.left*scale,(getHeight()-bounds.height()*scale)/2-bounds.top*scale);
+                android.graphics.Path fitted=new android.graphics.Path();glyph.transform(matrix,fitted);paint.setStyle(android.graphics.Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(Color.rgb(97,97,97));canvas.drawPath(fitted,paint);paint.setStyle(android.graphics.Paint.Style.FILL);
+            }
+        };
+        number.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);card.addView(number,new FrameLayout.LayoutParams(dp(numberWidth),dp(height)));
+        ImageView poster=artwork(item.optString("art"),posterWidth,height);poster.setBackground(bg(PANEL,2));poster.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        FrameLayout.LayoutParams imageParams=new FrameLayout.LayoutParams(dp(posterWidth),dp(height));imageParams.leftMargin=dp(inset);card.addView(poster,imageParams);
+        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(dp(inset+posterWidth+8),dp(height+8));params.setMargins(0,0,dp(14),dp(12));card.setLayoutParams(params);return card;
     }
     void hero(JSONObject item){
         LinearLayout h=col();h.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{Color.rgb(29,68,66),Color.rgb(22,35,46)}));h.setPadding(dp(24),dp(18),dp(24),dp(20));
