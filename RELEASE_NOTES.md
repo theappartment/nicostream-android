@@ -1,7 +1,6 @@
-Loghi sportivi nelle proposte Program Feed.
+Icona NicoStream condivisa con iOS.
 
-- Calcio: stemmi delle due squadre affiancati, senza ritaglio.
-- Formula 1: logo ufficiale F1.
-- Tennis: logo ATP o WTA secondo l’evento, senza foto dei giocatori.
-- Nomi non riconosciuti mantengono una grafica neutra.
-- Nessuna modifica alla selezione delle sorgenti o alla riproduzione.
+- Icona adattiva Android con il marchio originale iOS bianco su nero.
+- Riquadro Google TV / Android TV con lo stesso marchio.
+- Nome nel launcher: NicoStream.
+- Impostazioni, accesso alla VPS e cronologia conservati nell’aggiornamento.

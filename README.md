@@ -1,6 +1,6 @@
 # NicoStream Android
 
-Client per Android e Android TV / Google TV, con player nativo Media3, Home con anteprime silenziose, preferiti e Continua a guardare.
+Client per Android e Android TV / Google TV, con icona condivisa con iOS, con player nativo Media3, Home con anteprime silenziose, preferiti e Continua a guardare.
 
 ## Download e aggiornamenti
 
