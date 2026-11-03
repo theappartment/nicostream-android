@@ -32,6 +32,9 @@ public class MainActivity extends Activity {
     int discoverScrollY=0;
     final Map<String,Integer> discoverRowOffsets=new HashMap<>();
     boolean discoverLoading=false;
+    boolean sourceIndexLoading=false,sourceIndexWarning=false;
+    long sourceIndexUpdated=0;
+    final ArrayList<Runnable> sourceIndexWaiters=new ArrayList<>();
     boolean programHomeLoading=false;
     long programHomeUpdated=0;
     long programHomeRevision=0;
@@ -90,7 +93,7 @@ public class MainActivity extends Activity {
         getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);
         try{currentSeries=new JSONObject(prefs.getString("scLastTitle","{}"));}catch(Exception ignored){}
         try{if(prefs.getInt("discoverVersion",0)==1){discoverFeed=new JSONObject(prefs.getString("discoverFeed","{}"));discoverUpdated=0;}}catch(Exception ignored){}
-        localCatalog();if(prefs.getString("serverKey","").isEmpty())settings();else{home();loadRoot();}
+        localCatalog();if(prefs.getString("serverKey","").isEmpty())settings();else{refreshSourceIndex(true,null);home();loadRoot();}
     }
     String server(){return EngineAccess.SERVER;}
     void localCatalog(){try{items=new JSONObject(read(getAssets().open("catalog.json"))).getJSONArray("items");}catch(Exception e){items=new JSONArray();}}
@@ -152,7 +155,7 @@ public class MainActivity extends Activity {
         menu.addView(nav);root.addView(menu);space(root,8);
         ScrollView scroll=new ScrollView(this);body=col();scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         if(section.equals("Scopri")){
-            discoverBody=body;discoverScroll=scroll;renderDiscover();loadDiscover(false);loadProgramHome(false);if(updates!=null)updates.maybeCheck();scroll.post(()->scroll.scrollTo(0,discoverScrollY));
+            discoverBody=body;discoverScroll=scroll;renderDiscover();loadDiscover(false);refreshSourceIndex(false,null);loadProgramHome(false);if(updates!=null)updates.maybeCheck();scroll.post(()->scroll.scrollTo(0,discoverScrollY));
             root.post(()->{if(root.findFocus()==null)nav.getChildAt(0).requestFocus();});return;
         }
         LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
@@ -195,16 +198,48 @@ public class MainActivity extends Activity {
         root.post(()->{if(root.findFocus()==null)nav.getChildAt(section.equals("Cerca")?1:section.equals("Catalogo")?2:section.equals("Preferiti")?3:0).requestFocus();});
     }
     String safeMetadata(JSONObject item){try{return StreamingCommunityCatalog.publicMetadata(item).toString();}catch(Exception e){return "{}";}}
+    void refreshSourceIndex(boolean force,Runnable after){
+        if(!force&&System.currentTimeMillis()-sourceIndexUpdated<60000){if(after!=null)after.run();return;}
+        if(after!=null)sourceIndexWaiters.add(after);if(sourceIndexLoading)return;sourceIndexLoading=true;
+        worker.execute(()->{
+            try{JSONObject index=api("/v1/sources/stream4me"+(force?"?refresh=1":""),null);main.post(()->{
+                if(!alive)return;
+                try{applySourceIndex(index);sourceIndexWarning=index.optBoolean("usingLastValid");sourceIndexUpdated=System.currentTimeMillis();}catch(Exception e){sourceIndexWarning=true;}
+                finishSourceIndex();
+            });}catch(Exception e){main.post(()->{if(!alive)return;sourceIndexWarning=true;finishSourceIndex();});}
+        });
+    }
+    void finishSourceIndex(){
+        sourceIndexLoading=false;ArrayList<Runnable> ready=new ArrayList<>(sourceIndexWaiters);sourceIndexWaiters.clear();for(Runnable task:ready)task.run();if(screen.equals("home")&&section.equals("Scopri"))loadDiscover(false);
+    }
+    void withSourceIndex(Runnable task){final long request=generation;refreshSourceIndex(false,()->{if(alive&&generation==request)task.run();});}
+    JSONObject currentSource(JSONObject item){try{JSONObject copy=new JSONObject(item.toString());SourceDomains.migrate(copy,providerOrigin());return copy;}catch(Exception e){return item;}}
+    void applySourceIndex(JSONObject index)throws Exception {
+        String origin=SourceDomains.origin(index.optString("streamingCommunity"));if(origin.isEmpty())throw new IOException("Indice sorgenti non valido");
+        String previous=providerOrigin();android.content.SharedPreferences.Editor edit=prefs.edit().putString("scOrigin",origin).putString("sourceIndexRevision",index.optString("revision"));
+        if(!origin.equals(previous)){
+            for(String key:new String[]{"favorites","playbackHistory","scLastTitle"}){String json=prefs.getString(key,"");if(json.isEmpty())continue;try{Object value=new JSONTokener(json).nextValue();SourceDomains.migrate(value,origin);edit.putString(key,value.toString());}catch(Exception ignored){}}
+            edit.putString("scLastPage",SourceDomains.rebase(prefs.getString("scLastPage",""),origin)).remove("discoverFeed").remove("discoverUpdated");
+            SourceDomains.migrate(items,origin);SourceDomains.migrate(addonRoot,origin);SourceDomains.migrate(currentSeries,origin);SourceDomains.migrate(seriesSeasons,origin);
+            for(JSONArray directory:history)SourceDomains.migrate(directory,origin);
+            for(JSONObject series:knownSeries.values())SourceDomains.migrate(series,origin);
+            for(JSONArray seasons:knownSeasons.values())SourceDomains.migrate(seasons,origin);
+            focusItem=SourceDomains.rebase(focusItem,origin);discoverFeed=null;discoverUpdated=0;
+        }
+        edit.apply();
+        if(!origin.equals(previous)&&screen.equals("home")&&section.equals("Scopri")){renderDiscover();loadDiscover(true);}
+    }
     String providerOrigin(){
+        String configured=SourceDomains.origin(prefs.getString("scOrigin",""));if(!configured.isEmpty())return configured;
         try{Uri u=Uri.parse(new JSONObject(prefs.getString("scLastTitle","{}")).optString("url"));if(sourceHost(u.getHost()))return "https://"+u.getHost();}catch(Exception ignored){}
         for(int n=0;n<items.length();n++){JSONObject item=items.optJSONObject(n);if(item!=null&&isScSearch(item))return "https://"+Uri.parse(item.optString("url")).getHost();}return "";
     }
     void loadDiscover(boolean force){
-        String origin=providerOrigin();if(server().isEmpty()||origin.isEmpty()||discoverLoading||(!force&&discoverFeed!=null&&discoverFeed.optJSONArray("rails")!=null&&System.currentTimeMillis()-discoverUpdated<600000))return;
+        String origin=providerOrigin();if(sourceIndexLoading||server().isEmpty()||origin.isEmpty()||discoverLoading||(!force&&discoverFeed!=null&&discoverFeed.optJSONArray("rails")!=null&&System.currentTimeMillis()-discoverUpdated<600000))return;
         discoverLoading=true;discoverError="";final String ua=WebSettings.getDefaultUserAgent(this);
-        worker.execute(()->{try{JSONObject feed=StreamingCommunityCatalog.home(scPage(origin+"/it",ua),origin);if(feed.getJSONArray("rails").length()==0)throw new IOException("Nessuna raccolta disponibile");
-            main.post(()->{if(!alive)return;discoverLoading=false;discoverFeed=feed;discoverUpdated=System.currentTimeMillis();prefs.edit().putString("discoverFeed",safeMetadata(feed)).putInt("discoverVersion",1).putLong("discoverUpdated",discoverUpdated).apply();if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body){boolean browsing=body.hasFocus();if(!browsing||force){renderDiscover();if(force)nav.getChildAt(0).requestFocus();}else{TextView update=button("Nuovi titoli disponibili · Aggiorna",()->{focusItem="";home();});body.addView(update,0);}}});
-        }catch(Exception e){main.post(()->{if(!alive)return;discoverLoading=false;discoverError="Non riesco ad aggiornare i titoli. Puoi riprovare o usare Cerca.";if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body&&(!body.hasFocus()||force)){renderDiscover();if(force)nav.getChildAt(0).requestFocus();}});}});
+        worker.execute(()->{try{JSONObject page=scPage(origin+"/it",ua);JSONObject feed=StreamingCommunityCatalog.home(page,page.optString("_sourceOrigin",origin));if(feed.getJSONArray("rails").length()==0)throw new IOException("Nessuna raccolta disponibile");
+            main.post(()->{if(!alive)return;discoverLoading=false;if(!origin.equals(providerOrigin())){if(screen.equals("home")&&section.equals("Scopri"))loadDiscover(true);return;}discoverFeed=feed;discoverUpdated=System.currentTimeMillis();prefs.edit().putString("discoverFeed",safeMetadata(feed)).putInt("discoverVersion",1).putLong("discoverUpdated",discoverUpdated).apply();if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body){boolean browsing=body.hasFocus();if(!browsing||force){renderDiscover();if(force)nav.getChildAt(0).requestFocus();}else{TextView update=button("Nuovi titoli disponibili · Aggiorna",()->{focusItem="";home();});body.addView(update,0);}}});
+        }catch(Exception e){main.post(()->{if(!alive)return;discoverLoading=false;if(!origin.equals(providerOrigin())){if(screen.equals("home")&&section.equals("Scopri"))loadDiscover(true);return;}discoverError="Non riesco ad aggiornare i titoli. Puoi riprovare o usare Cerca.";if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body&&(!body.hasFocus()||force)){renderDiscover();if(force)nav.getChildAt(0).requestFocus();}});}});
     }
     void loadProgramHome(boolean force){
         if(server().isEmpty()||programHomeLoading)return;
@@ -247,7 +282,7 @@ public class MainActivity extends Activity {
             scroll.addView(row);body.addView(scroll);
         }
         if(rails==null||rails.length()==0){body.addView(text(discoverError.isEmpty()?providerOrigin().isEmpty()?"Apri StreamingCommunity dal Catalogo per attivare i suggerimenti.":"Caricamento dei titoli…":discoverError,14,MUTED));if(!discoverError.isEmpty())body.addView(button("Riprova",()->loadDiscover(true)));}
-        else{LinearLayout footer=new LinearLayout(this);footer.addView(text("Scopri qualcosa di nuovo, oppure riparti da dove eri rimasto.",12,MUTED),new LinearLayout.LayoutParams(0,-2,1));footer.addView(button("Aggiorna",()->{loadDiscover(true);loadProgramHome(true);}));body.addView(footer);if(!discoverError.isEmpty())body.addView(text(discoverError,12,MUTED));}
+        else{LinearLayout footer=new LinearLayout(this);footer.addView(text("Scopri qualcosa di nuovo, oppure riparti da dove eri rimasto.",12,MUTED),new LinearLayout.LayoutParams(0,-2,1));footer.addView(button("Aggiorna",()->{refreshSourceIndex(true,()->loadDiscover(true));loadProgramHome(true);}));body.addView(footer);if(!discoverError.isEmpty())body.addView(text(discoverError,12,MUTED));}
         if(server().isEmpty()&&(rails==null||rails.length()==0))for(int i=0;i<items.length();i++){JSONObject item=items.optJSONObject(i);if(item!=null)body.addView(card(item));}
         space(body,20);
     }
@@ -346,7 +381,8 @@ public class MainActivity extends Activity {
         EditText input=new EditText(this);input.setSingleLine(true);input.setHint("Titolo di un film, una serie o un anime");input.setTextColor(WHITE);input.setPadding(dp(20),dp(14),dp(20),dp(14));
         new AlertDialog.Builder(this).setTitle("Cerca in tutti gli addon").setMessage("Stream4me / StreamingCommunity e ToonItalia").setView(input).setPositiveButton("Cerca",(d,w)->{String query=input.getText().toString().trim();if(!query.isEmpty())unifiedSearch(query);}).setNegativeButton("Annulla",null).show();
     }
-    void unifiedSearch(String query){
+    void unifiedSearch(String query){withSourceIndex(()->unifiedSearchResolved(query));}
+    void unifiedSearchResolved(String query){
         if(!currentJob.isEmpty())return;
         final long request=++generation;final String origin=providerOrigin(),ua=WebSettings.getDefaultUserAgent(this);
         final JSONArray[] results={new JSONArray(),new JSONArray()};final String[] errors={"",""};final int[] pending={2};
@@ -358,7 +394,7 @@ public class MainActivity extends Activity {
                 try{
                     if(index==0){
                         if(origin.isEmpty())throw new IOException("Apri StreamingCommunity dal Catalogo per attivare questa sorgente.");
-                        found=StreamingCommunityCatalog.search(scPage(origin+"/it/search?q="+Uri.encode(query),ua),origin,query);
+                        JSONObject page=scPage(origin+"/it/search?q="+Uri.encode(query),ua);found=StreamingCommunityCatalog.search(page,page.optString("_sourceOrigin",origin),query);
                     }else found=toonSearch(query,request);
                 }catch(Exception e){failure=index==0?(origin.isEmpty()?"Stream4me: apri StreamingCommunity dal Catalogo per attivare la ricerca.":"Stream4me non disponibile. Riprova tra poco."):"ToonItalia non disponibile. Riprova tra poco.";}
                 final JSONArray ready=found;final String error=failure;
@@ -417,21 +453,32 @@ public class MainActivity extends Activity {
         Uri u=Uri.parse(item.optString("url"));return item.optBoolean("isWeb")&&sourceHost(u.getHost())&&u.getPath()!=null&&u.getPath().endsWith("/search");
     }
     JSONObject scPage(String url,String ua)throws Exception {
+        try{return scPageRequest(url,ua);}
+        catch(Exception original){
+            JSONObject index;try{index=api("/v1/sources/stream4me?refresh=1",null);}catch(Exception unavailable){throw original;}
+            String origin=SourceDomains.origin(index.optString("streamingCommunity")),updated=SourceDomains.rebase(url,origin);
+            if(origin.isEmpty()||updated.equals(url))throw original;
+            main.post(()->{if(alive)try{applySourceIndex(index);sourceIndexUpdated=System.currentTimeMillis();sourceIndexWarning=index.optBoolean("usingLastValid");}catch(Exception ignored){}});
+            return scPageRequest(updated,ua);
+        }
+    }
+    JSONObject scPageRequest(String url,String ua)throws Exception {
         BrowserSessionDataSource data=new BrowserSessionDataSource(ua,Collections.singletonMap("Accept","text/html"),Uri.parse(url).getHost());
         try{
             data.open(new androidx.media3.datasource.DataSpec(Uri.parse(url)));ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] bytes=new byte[8192];int n;
             while((n=data.read(bytes,0,bytes.length))!=-1){out.write(bytes,0,n);if(out.size()>2097152)throw new IOException("Catalogo troppo grande");}
-            return StreamingCommunityCatalog.props(out.toString("UTF-8"));
+            return StreamingCommunityCatalog.props(out.toString("UTF-8")).put("_sourceOrigin","https://"+Uri.parse(url).getHost());
         }finally{data.close();}
     }
-    void scCatalog(JSONObject item){
+    void scCatalog(JSONObject item){withSourceIndex(()->scCatalogResolved(currentSource(item)));}
+    void scCatalogResolved(JSONObject item){
         final String url=item.optString("url"),ua=WebSettings.getDefaultUserAgent(this);Uri uri=Uri.parse(url);
         if(!"https".equals(uri.getScheme())||!sourceHost(uri.getHost())){showError("Catalogo non consentito");return;}
         final boolean replaceSeason=item.optString("scAction").equals("season")&&items.length()>0&&items.optJSONObject(0).optString("scAction").equals("episode");
         final long request=++generation;screen="loading";base();root.addView(title(item.optString("title","StreamingCommunity"),26));root.addView(text("Caricamento…",16,MUTED));root.addView(new ProgressBar(this));root.addView(button("Annulla",()->{generation++;home();}));
         worker.execute(()->{
             try{
-                JSONObject props=scPage(url,ua);String origin="https://"+uri.getHost(),action=item.optString("scAction");
+                JSONObject props=scPage(url,ua);String origin=props.optString("_sourceOrigin","https://"+uri.getHost()),action=item.optString("scAction");
                 if(action.equals("episode")){
                     StreamingCommunityCatalog.verifyEpisode(props,item.getLong("scTitleId"),item.getLong("scEpisodeId"));
                     JSONObject title=props.getJSONObject("title"),episode=props.getJSONObject("episode");
@@ -462,7 +509,7 @@ public class MainActivity extends Activity {
                     JSONObject movie=new JSONObject(item.toString()).put("scAction","movie").put("url",origin+"/it/watch/"+props.getJSONObject("title").getLong("id"));
                     runOnUiThread(()->{if(alive&&generation==request)openSourcePage(movie,true);});return;
                 }else list=StreamingCommunityCatalog.seasons(props,origin);
-                runOnUiThread(()->{if(!alive||generation!=request)return;if(action.equals("title")){try{currentSeries=StreamingCommunityCatalog.decorate(new JSONObject(item.toString()),props.getJSONObject("title"),props);seriesSeasons=list;long seriesId=props.getJSONObject("title").getLong("id");knownSeries.put(seriesId,currentSeries);knownSeasons.put(seriesId,list);prefs.edit().putString("scLastTitle",safeMetadata(currentSeries)).apply();}catch(Exception ignored){}}if(!replaceSeason){pushHistory();}focusItem="";items=list;catalogTitle=isScSearch(item)?item.optString("title","StreamingCommunity"):action.equals("season")&&currentSeries!=null?currentSeries.optString("title")+" · "+item.optString("title"):item.optString("title");section="Catalogo";home();});
+                runOnUiThread(()->{if(!alive||generation!=request)return;if(action.equals("title")){try{currentSeries=StreamingCommunityCatalog.decorate(currentSource(item),props.getJSONObject("title"),props);seriesSeasons=list;long seriesId=props.getJSONObject("title").getLong("id");knownSeries.put(seriesId,currentSeries);knownSeasons.put(seriesId,list);prefs.edit().putString("scLastTitle",safeMetadata(currentSeries)).apply();}catch(Exception ignored){}}if(!replaceSeason){pushHistory();}focusItem="";items=list;catalogTitle=isScSearch(item)?item.optString("title","StreamingCommunity"):action.equals("season")&&currentSeries!=null?currentSeries.optString("title")+" · "+item.optString("title"):item.optString("title");section="Catalogo";home();});
             }catch(Exception e){runOnUiThread(()->{if(!alive||generation!=request)return;home();new AlertDialog.Builder(this).setTitle("Catalogo non disponibile").setMessage(e.getMessage()).setPositiveButton("Apri pagina",(d,w)->openSourcePage(item)).setNegativeButton("Chiudi",null).show();});}
         });
     }
@@ -685,7 +732,8 @@ public class MainActivity extends Activity {
         return host.toLowerCase(Locale.ROOT).matches("(?:www\\.)?streaming-?community[a-z0-9-]*\\.[a-z]{2,}") || host.equals("vixsrc.to") || host.equals("vixcloud.co") || host.equals("vixcloud.cc");
     }
     void openSourcePage(JSONObject item){openSourcePage(item,false);}
-    void openSourcePage(JSONObject item,boolean automatic){
+    void openSourcePage(JSONObject item,boolean automatic){withSourceIndex(()->openSourcePageResolved(currentSource(item),automatic));}
+    void openSourcePageResolved(JSONObject item,boolean automatic){
         Uri uri=Uri.parse(item.optString("url"));
         if(!"https".equals(uri.getScheme())||!sourceHost(uri.getHost())){showError("Pagina sorgente non consentita");return;}
         browserMediaCandidate=null;browserPage=uri.toString();
@@ -696,7 +744,7 @@ public class MainActivity extends Activity {
         TextView label=text("Pagina sorgente · sessione sul dispositivo",14,MUTED);bar.addView(label,new LinearLayout.LayoutParams(0,-2,1));
         nativePlayerButton=button("Player dell’app",()->{if(browserMediaCandidate!=null)play(browserMediaCandidate);});
         nativePlayerButton.setEnabled(false);nativePlayerButton.setAlpha(.45f);bar.addView(nativePlayerButton);
-        bar.addView(button("Ricarica",()->{if(browser!=null)browser.reload();}));root.addView(bar);
+        bar.addView(button("Ricarica",()->refreshSourceIndex(true,()->openSourcePage(currentSource(item),automatic))));root.addView(bar);
         webFrame=new FrameLayout(this);root.addView(webFrame,new LinearLayout.LayoutParams(-1,0,1));
         try{browser=new WebView(this);}catch(Exception e){home();showError("Il componente browser Android non è disponibile su questo dispositivo.");return;}
         browser.setBackgroundColor(BG);webFrame.addView(browser,new FrameLayout.LayoutParams(-1,-1));
@@ -784,6 +832,8 @@ public class MainActivity extends Activity {
         screen="settings";base();ScrollView scroll=new ScrollView(this);LinearLayout content=col();scroll.addView(content);root.addView(scroll);
         content.addView(title("Aggiornamenti",26));content.addView(text("Versione "+BuildConfig.VERSION_NAME,15,MUTED));
         content.addView(button("Controlla aggiornamenti",()->updates.check(true)),new LinearLayout.LayoutParams(-2,-2));content.addView(text("Le nuove versioni arrivano da GitHub. Il controllo automatico avviene una volta al giorno.",13,MUTED));space(content,24);
+        content.addView(title("Domini delle sorgenti",24));content.addView(text("L’indice Stream4me viene aggiornato automaticamente. Se non è disponibile, viene mantenuta l’ultima copia valida.",14,MUTED));
+        content.addView(button("Aggiorna domini sorgenti",()->refreshSourceIndex(true,()->Toast.makeText(this,sourceIndexWarning?"Uso l’ultima copia valida delle sorgenti":"Domini delle sorgenti aggiornati",Toast.LENGTH_LONG).show())));space(content,24);
         content.addView(title("Connessione a NicoStream",28));content.addView(text("Il server è già configurato. La connessione parte automaticamente all’apertura dell’app.",16,MUTED));space(content,12);
         content.addView(text(EngineAccess.SERVER,16,MINT));space(content,12);
         boolean authorized=!prefs.getString("serverKey","").isEmpty();
