@@ -283,7 +283,12 @@ public class MainActivity extends Activity {
         continueShelf();
         JSONArray saved=favorites();if(saved.length()>0)discoverRail("La tua lista",saved,false);
         JSONArray rails=discoverFeed==null?null:discoverFeed.optJSONArray("rails");
-        if(rails!=null)for(int i=0;i<rails.length();i++){JSONObject rail=rails.optJSONObject(i);if(rail!=null)discoverRail(rail.optString("title"),rail.optJSONArray("items"),rail.optString("id").equals("top10"));}
+        // Keep Top 10 first among discovery rails, preserving the order of the others.
+        if(rails!=null)for(int pass=0;pass<2;pass++)for(int i=0;i<rails.length();i++){
+            JSONObject rail=rails.optJSONObject(i);if(rail==null)continue;
+            boolean ranked=rail.optString("id").equals("top10");
+            if(ranked==(pass==0))discoverRail(rail.optString("title"),rail.optJSONArray("items"),ranked);
+        }
         JSONArray genres=discoverFeed==null?null:discoverFeed.optJSONArray("genres");String origin=providerOrigin();
         if(genres!=null&&!origin.isEmpty()){
             body.addView(title("Esplora per genere",22));HorizontalScrollView scroll=new HorizontalScrollView(this);scroll.setHorizontalScrollBarEnabled(false);LinearLayout row=new LinearLayout(this);
