@@ -54,7 +54,7 @@ public class MainActivity extends Activity {
     android.content.SharedPreferences prefs;
     final ExecutorService worker=Executors.newFixedThreadPool(3);
     final Handler main=new Handler(Looper.getMainLooper());
-    TextView status,clock,pauseButton;
+    TextView status,clock,pauseButton,sourceDomainStatus;
     ExoPlayer player;
     HeroPreview heroPreview;
     AppUpdates updates;
@@ -210,7 +210,7 @@ public class MainActivity extends Activity {
         });
     }
     void finishSourceIndex(){
-        sourceIndexLoading=false;ArrayList<Runnable> ready=new ArrayList<>(sourceIndexWaiters);sourceIndexWaiters.clear();for(Runnable task:ready)task.run();if(screen.equals("home")&&section.equals("Scopri"))loadDiscover(false);
+        sourceIndexLoading=false;if(sourceDomainStatus!=null&&sourceDomainStatus.isAttachedToWindow())sourceDomainStatus.setText("StreamingCommunity: "+(providerOrigin().isEmpty()?"dominio non disponibile":Uri.parse(providerOrigin()).getHost())+(sourceIndexWarning?" · ultima copia valida":""));ArrayList<Runnable> ready=new ArrayList<>(sourceIndexWaiters);sourceIndexWaiters.clear();for(Runnable task:ready)task.run();if(screen.equals("home")&&section.equals("Scopri"))loadDiscover(false);
     }
     void withSourceIndex(Runnable task){final long request=generation;refreshSourceIndex(false,()->{if(alive&&generation==request)task.run();});}
     JSONObject currentSource(JSONObject item){try{JSONObject copy=new JSONObject(item.toString());SourceDomains.migrate(copy,providerOrigin());return copy;}catch(Exception e){return item;}}
@@ -833,6 +833,7 @@ public class MainActivity extends Activity {
         content.addView(title("Aggiornamenti",26));content.addView(text("Versione "+BuildConfig.VERSION_NAME,15,MUTED));
         content.addView(button("Controlla aggiornamenti",()->updates.check(true)),new LinearLayout.LayoutParams(-2,-2));content.addView(text("Le nuove versioni arrivano da GitHub. Il controllo automatico avviene una volta al giorno.",13,MUTED));space(content,24);
         content.addView(title("Domini delle sorgenti",24));content.addView(text("L’indice Stream4me viene aggiornato automaticamente. Se non è disponibile, viene mantenuta l’ultima copia valida.",14,MUTED));
+        sourceDomainStatus=text("StreamingCommunity: "+(providerOrigin().isEmpty()?"verifica in corso":Uri.parse(providerOrigin()).getHost())+(sourceIndexWarning?" · ultima copia valida":""),14,MINT);content.addView(sourceDomainStatus);space(content,8);
         content.addView(button("Aggiorna domini sorgenti",()->refreshSourceIndex(true,()->Toast.makeText(this,sourceIndexWarning?"Uso l’ultima copia valida delle sorgenti":"Domini delle sorgenti aggiornati",Toast.LENGTH_LONG).show())));space(content,24);
         content.addView(title("Connessione a NicoStream",28));content.addView(text("Il server è già configurato. La connessione parte automaticamente all’apertura dell’app.",16,MUTED));space(content,12);
         content.addView(text(EngineAccess.SERVER,16,MINT));space(content,12);
