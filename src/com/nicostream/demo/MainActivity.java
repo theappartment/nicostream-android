@@ -34,6 +34,7 @@ public class MainActivity extends Activity {
     boolean discoverLoading=false;
     boolean sourceIndexLoading=false,sourceIndexWarning=false;
     long sourceIndexUpdated=0;
+    int sourceIndexFailures=0;
     final ArrayList<Runnable> sourceIndexWaiters=new ArrayList<>();
     boolean programHomeLoading=false;
     long programHomeUpdated=0;
@@ -204,13 +205,20 @@ public class MainActivity extends Activity {
         worker.execute(()->{
             try{JSONObject index=api("/v1/sources/stream4me"+(force?"?refresh=1":""),null);main.post(()->{
                 if(!alive)return;
-                try{applySourceIndex(index);sourceIndexWarning=index.optBoolean("usingLastValid");sourceIndexUpdated=System.currentTimeMillis();}catch(Exception e){sourceIndexWarning=true;}
+                try{applySourceIndex(index);sourceIndexWarning=index.optBoolean("usingLastValid");sourceIndexUpdated=System.currentTimeMillis();sourceIndexFailures=0;}catch(Exception e){sourceIndexWarning=true;sourceIndexFailures++;}
                 finishSourceIndex();
-            });}catch(Exception e){main.post(()->{if(!alive)return;sourceIndexWarning=true;finishSourceIndex();});}
+            });}catch(Exception e){main.post(()->{if(!alive)return;sourceIndexWarning=true;sourceIndexFailures++;finishSourceIndex();});}
         });
     }
     void finishSourceIndex(){
-        sourceIndexLoading=false;if(sourceDomainStatus!=null&&sourceDomainStatus.isAttachedToWindow())sourceDomainStatus.setText("StreamingCommunity: "+(providerOrigin().isEmpty()?"dominio non disponibile":Uri.parse(providerOrigin()).getHost())+(sourceIndexWarning?" · ultima copia valida":""));ArrayList<Runnable> ready=new ArrayList<>(sourceIndexWaiters);sourceIndexWaiters.clear();for(Runnable task:ready)task.run();if(screen.equals("home")&&section.equals("Scopri"))loadDiscover(false);
+        sourceIndexLoading=false;if(sourceDomainStatus!=null&&sourceDomainStatus.isAttachedToWindow())sourceDomainStatus.setText("StreamingCommunity: "+(providerOrigin().isEmpty()?"dominio non disponibile":Uri.parse(providerOrigin()).getHost())+(sourceIndexWarning?" · ultima copia valida":""));ArrayList<Runnable> ready=new ArrayList<>(sourceIndexWaiters);sourceIndexWaiters.clear();for(Runnable task:ready)task.run();
+        if(screen.equals("home")&&section.equals("Scopri")){
+            if(providerOrigin().isEmpty()){
+                if(sourceIndexWarning)discoverError="Connessione alle sorgenti temporaneamente non disponibile.";
+                renderDiscover();
+                if(sourceIndexFailures>0&&sourceIndexFailures<=3)main.postDelayed(()->{if(alive&&screen.equals("home")&&section.equals("Scopri")&&providerOrigin().isEmpty())refreshSourceIndex(false,null);},15000);
+            }else loadDiscover(false);
+        }
     }
     void withSourceIndex(Runnable task){final long request=generation;refreshSourceIndex(false,()->{if(alive&&generation==request)task.run();});}
     JSONObject currentSource(JSONObject item){try{JSONObject copy=new JSONObject(item.toString());SourceDomains.migrate(copy,providerOrigin());return copy;}catch(Exception e){return item;}}
@@ -281,7 +289,7 @@ public class MainActivity extends Activity {
             for(int i=0;i<genres.length();i++){JSONObject genre=genres.optJSONObject(i);if(genre==null||genre.optInt("id")<=0)continue;try{JSONObject item=new JSONObject().put("url",origin+"/it/archive?genre%5B%5D="+genre.getInt("id")).put("scAction","collection").put("title",genre.getString("name"));TextView tab=button(genre.getString("name"),()->scCatalog(item));LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-2,-2);gp.setMargins(0,dp(8),dp(10),dp(16));row.addView(tab,gp);}catch(Exception ignored){}}
             scroll.addView(row);body.addView(scroll);
         }
-        if(rails==null||rails.length()==0){body.addView(text(discoverError.isEmpty()?providerOrigin().isEmpty()?"Apri StreamingCommunity dal Catalogo per attivare i suggerimenti.":"Caricamento dei titoli…":discoverError,14,MUTED));if(!discoverError.isEmpty())body.addView(button("Riprova",()->loadDiscover(true)));}
+        if(rails==null||rails.length()==0){body.addView(text(discoverError.isEmpty()?providerOrigin().isEmpty()?"Preparazione automatica dei suggerimenti…":"Caricamento dei titoli…":discoverError,14,MUTED));if(!discoverError.isEmpty())body.addView(button("Riprova",()->refreshSourceIndex(true,()->loadDiscover(true))));}
         else{LinearLayout footer=new LinearLayout(this);footer.addView(text("Scopri qualcosa di nuovo, oppure riparti da dove eri rimasto.",12,MUTED),new LinearLayout.LayoutParams(0,-2,1));footer.addView(button("Aggiorna",()->{refreshSourceIndex(true,()->loadDiscover(true));loadProgramHome(true);}));body.addView(footer);if(!discoverError.isEmpty())body.addView(text(discoverError,12,MUTED));}
         if(server().isEmpty()&&(rails==null||rails.length()==0))for(int i=0;i<items.length();i++){JSONObject item=items.optJSONObject(i);if(item!=null)body.addView(card(item));}
         space(body,20);
@@ -393,10 +401,10 @@ public class MainActivity extends Activity {
                 JSONArray found=new JSONArray();String failure="";
                 try{
                     if(index==0){
-                        if(origin.isEmpty())throw new IOException("Apri StreamingCommunity dal Catalogo per attivare questa sorgente.");
+                        if(origin.isEmpty())throw new IOException("Dominio StreamingCommunity temporaneamente non disponibile.");
                         JSONObject page=scPage(origin+"/it/search?q="+Uri.encode(query),ua);found=StreamingCommunityCatalog.search(page,page.optString("_sourceOrigin",origin),query);
                     }else found=toonSearch(query,request);
-                }catch(Exception e){failure=index==0?(origin.isEmpty()?"Stream4me: apri StreamingCommunity dal Catalogo per attivare la ricerca.":"Stream4me non disponibile. Riprova tra poco."):"ToonItalia non disponibile. Riprova tra poco.";}
+                }catch(Exception e){failure=index==0?(origin.isEmpty()?"StreamingCommunity: dominio temporaneamente non disponibile. Riprova tra poco.":"Stream4me non disponibile. Riprova tra poco."):"ToonItalia non disponibile. Riprova tra poco.";}
                 final JSONArray ready=found;final String error=failure;
                 main.post(()->{
                     if(!alive||generation!=request)return;results[index]=ready;errors[index]=error;
