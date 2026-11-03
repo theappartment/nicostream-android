@@ -75,6 +75,10 @@ public class MainActivity extends Activity {
         super.onCreate(b);
         prefs=getSharedPreferences("nico",0);
         updates=new AppUpdates(this,()->screen.equals("home")&&section.equals("Scopri")&&currentJob.isEmpty());
+        if(getIntent().getBooleanExtra("import_engine_setup",false)){
+            File setup=new File(getExternalFilesDir(null),"engine-setup.json");
+            try{JSONObject config=new JSONObject(new String(java.nio.file.Files.readAllBytes(setup.toPath()),"UTF-8"));String endpoint=config.getString("server"),key=config.getString("key");if(endpoint.equals("https://nicostream.theappartment.it")&&key.matches("[a-f0-9]{64}"))prefs.edit().putString("server",endpoint).putString("serverKey",key).apply();}catch(Exception ignored){}finally{setup.delete();getIntent().removeExtra("import_engine_setup");}
+        }
         String provision=getIntent().getStringExtra("demo_server");
         if("http://127.0.0.1:18091".equals(provision))prefs.edit().putString("server",provision).apply();
         android.util.Log.i("NicoStreamPlayback","WIDEVINE_SUPPORTED="+android.media.MediaDrm.isCryptoSchemeSupported(C.WIDEVINE_UUID));
@@ -95,6 +99,7 @@ public class MainActivity extends Activity {
     JSONObject api(String path,JSONObject post)throws Exception{
         HttpURLConnection c=(HttpURLConnection)new URL(server()+path).openConnection();
         c.setConnectTimeout(10000);c.setReadTimeout(65000);c.setInstanceFollowRedirects(false);
+        String authorization=EngineAccess.authorization(server(),server()+path,prefs.getString("serverKey",""));if(!authorization.isEmpty())c.setRequestProperty("Authorization",authorization);
         try{
             if(post!=null){c.setRequestMethod("POST");c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json");try(OutputStream out=c.getOutputStream()){out.write(post.toString().getBytes("UTF-8"));}}
             int code=c.getResponseCode();
@@ -545,6 +550,10 @@ public class MainActivity extends Activity {
         frame.addView(transport,new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM));
         seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onStartTrackingTouch(SeekBar s){seeking=true;}public void onStopTrackingTouch(SeekBar s){if(player!=null&&player.getDuration()>0)player.seekTo(player.getDuration()*s.getProgress()/1000);seeking=false;showControls();}public void onProgressChanged(SeekBar s,int p,boolean user){}});
         ExoPlayer.Builder builder=new ExoPlayer.Builder(this);
+        if(item.optString("url").startsWith("/v1/media/")&&!prefs.getString("serverKey","").isEmpty()){
+            final String endpoint=server(),key=prefs.getString("serverKey","");
+            builder.setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(this,()->new BrowserSessionDataSource(endpoint,key))));
+        }
         if(item.optBoolean("localBrowserSession")){
             Map<String,String> captured=new HashMap<>();JSONObject h=item.optJSONObject("browserHeaders");
             if(h!=null){Iterator<String> keys=h.keys();while(keys.hasNext()){String k=keys.next();captured.put(k,h.optString(k));}}
@@ -574,7 +583,7 @@ public class MainActivity extends Activity {
         JSONObject drm=item.optJSONObject("drm");if(drm!=null&&drm.optString("scheme").equals("widevine")){
             if(!android.media.MediaDrm.isCryptoSchemeSupported(C.WIDEVINE_UUID)){details(item);showError("Questo emulatore non dispone di Widevine. Questa sorgente richiede un dispositivo Android compatibile.");return;}
             String license=drm.optString("licenseUrl");if(license.startsWith("/v1/license/"))license=server()+license;
-            media.setDrmConfiguration(new MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID).setLicenseUri(license).setForceDefaultLicenseUri(true).setMultiSession(true).build());
+            media.setDrmConfiguration(new MediaItem.DrmConfiguration.Builder(C.WIDEVINE_UUID).setLicenseUri(license).setLicenseRequestHeaders(EngineAccess.sameOrigin(server(),license)?Collections.singletonMap("Authorization",EngineAccess.authorization(server(),license,prefs.getString("serverKey",""))):Collections.emptyMap()).setForceDefaultLicenseUri(true).setMultiSession(true).build());
         }
         JSONArray subs=item.optJSONArray("subtitles");if(subs!=null){ArrayList<MediaItem.SubtitleConfiguration> configs=new ArrayList<>();for(int i=0;i<subs.length();i++){String sub=subs.optString(i);if(sub.startsWith("/v1/media/"))sub=server()+sub;if(sub.startsWith("https://")||sub.startsWith("http://127.0.0.1:"))configs.add(new MediaItem.SubtitleConfiguration.Builder(Uri.parse(sub)).setMimeType(sub.contains(".vtt")?MimeTypes.TEXT_VTT:MimeTypes.APPLICATION_SUBRIP).setLabel("Sottotitoli "+(i+1)).build());}media.setSubtitleConfigurations(configs);}
         long resume=item.optBoolean("isLive")?0:item.optLong("resumeAt",resumePosition(playingSource));if(item.optBoolean("isLive"))player.setMediaItem(media.build());else player.setMediaItem(media.build(),Math.max(0,resume));if(resume>0)android.util.Log.i("NicoStreamPlayback","RESUME_REQUEST_MS="+resume);player.prepare();player.play();showControls();pauseButton.requestFocus();
@@ -723,9 +732,10 @@ public class MainActivity extends Activity {
         screen="settings";base();ScrollView scroll=new ScrollView(this);LinearLayout content=col();scroll.addView(content);root.addView(scroll);
         content.addView(title("Aggiornamenti",26));content.addView(text("Versione "+BuildConfig.VERSION_NAME,15,MUTED));
         content.addView(button("Controlla aggiornamenti",()->updates.check(true)),new LinearLayout.LayoutParams(-2,-2));content.addView(text("Le nuove versioni arrivano da GitHub. Il controllo automatico avviene una volta al giorno.",13,MUTED));space(content,24);
-        content.addView(title("Il tuo motore, sulla VPS.",28));content.addView(text("La demo usa il motore Kodi tramite il tunnel privato del Mac. Per un server remoto inserisci un indirizzo HTTPS.",16,MUTED));space(content,18);
-        EditText address=new EditText(this);address.setTextColor(WHITE);address.setTextSize(18);address.setSingleLine(true);address.setInputType(17);address.setHint("https://stream.tuodominio.it");address.setHintTextColor(MUTED);address.setText(server());content.addView(address);space(content,12);
-        content.addView(button("Salva e carica catalogo",()->{String s=address.getText().toString().trim().replaceAll("/+$","");try{URI u=new URI(s);if(!("https".equals(u.getScheme())||("http".equals(u.getScheme())&&"127.0.0.1".equals(u.getHost())))||u.getHost()==null||u.getUserInfo()!=null||u.getQuery()!=null||u.getFragment()!=null)throw new Exception();}catch(Exception e){address.setError("Inserisci HTTPS o il tunnel locale");return;}prefs.edit().putString("server",s).apply();loadRoot();}));space(content,12);
+        content.addView(title("Il tuo motore, sulla VPS.",28));content.addView(text("Collega i tuoi tre addon al motore privato tramite indirizzo HTTPS e chiave di accesso.",16,MUTED));space(content,18);
+        EditText address=new EditText(this);address.setTextColor(WHITE);address.setTextSize(18);address.setSingleLine(true);address.setInputType(17);address.setHint("https://nicostream.theappartment.it");address.setHintTextColor(MUTED);address.setText(server());content.addView(address);space(content,12);
+        EditText accessKey=new EditText(this);accessKey.setTextColor(WHITE);accessKey.setSingleLine(true);accessKey.setInputType(129);accessKey.setSaveEnabled(false);accessKey.setHint("Chiave di accesso privata");accessKey.setHintTextColor(MUTED);accessKey.setText(prefs.getString("serverKey",""));content.addView(accessKey);space(content,12);
+        content.addView(button("Salva e carica catalogo",()->{String s=address.getText().toString().trim().replaceAll("/+$","");try{URI u=new URI(s);if(!("https".equals(u.getScheme())||("http".equals(u.getScheme())&&"127.0.0.1".equals(u.getHost())))||u.getHost()==null||u.getUserInfo()!=null||u.getQuery()!=null||u.getFragment()!=null)throw new Exception();}catch(Exception e){address.setError("Inserisci HTTPS o il tunnel locale");return;}prefs.edit().putString("server",s).putString("serverKey",accessKey.getText().toString().trim()).apply();loadRoot();}));space(content,12);
         content.addView(button("Usa la demo locale",()->{cancelJob();history.clear();titles.clear();historySections.clear();prefs.edit().remove("server").apply();localCatalog();home();}));space(content,12);content.addView(button("‹ Torna al catalogo",this::home));
     }
     @Override public void onBackPressed(){if(screen.equals("web")){if(automaticEpisode!=null){automaticEpisode=null;home();}else if(webCustomView!=null)closeWebFullscreen();else if(browser!=null&&browser.canGoBack())browser.goBack();else home();}else if(screen.equals("loading")){cancelJob();home();}else if(screen.equals("player")){if(selected!=null&&(selected.optBoolean("localBrowserSession")||selected.optString("addonId").equals("plugin.video.nikod.toonitalia")||selected.optString("addonId").equals("plugin.video.nikod.programfeed")))home();else details(selected);}else if(!screen.equals("home")){home();}else if(!history.isEmpty()){previous();}else super.onBackPressed();}

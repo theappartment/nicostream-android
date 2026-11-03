@@ -16,7 +16,7 @@ La chiave privata di firma non è contenuta in questo repository. `official-sign
 
 - Android 8 / API 26 o successivi. Touch e telecomando supportati.
 - La demo locale include due film aperti della Blender Foundation; non richiede un server.
-- Per i cataloghi degli addon serve un motore VPS compatibile: impostare il suo indirizzo HTTPS nelle impostazioni. Il server e le credenziali personali non sono inclusi nell’APK.
+- Per i cataloghi degli addon serve un motore VPS compatibile: impostare il suo indirizzo HTTPS e la chiave privata nelle impostazioni. Il server e le credenziali personali non sono inclusi nell’APK.
 - **Cerca** interroga insieme Stream4me / StreamingCommunity sul dispositivo e ToonItalia sul motore VPS. Ogni scheda indica la sorgente e conserva il suo percorso originale. Un servizio non disponibile non elimina i risultati dell’altro.
 - **Catalogo → Program Feed** usa il parser e il resolver condivisi con iOS: palinsesto per giorno/lingua, canali rapidi e impostazioni del feed. I video compatibili partono nel player nativo con gli header della sorgente; le pagine senza un video nativo vengono segnalate. Le dirette non salvano punti di ripresa.
 - La cronologia e i punti di ripresa sono salvati sul dispositivo.

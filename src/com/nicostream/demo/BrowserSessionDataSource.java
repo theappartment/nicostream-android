@@ -18,6 +18,7 @@ final class BrowserSessionDataSource extends BaseDataSource {
     private final String userAgent;
     private final Map<String,String> browserHeaders;
     private final String mediaHost;
+    private String engineOrigin="";
     private HttpURLConnection connection;
     private InputStream input;
     private Uri uri;
@@ -25,6 +26,9 @@ final class BrowserSessionDataSource extends BaseDataSource {
     private boolean opened;
     BrowserSessionDataSource(String userAgent,Map<String,String> headers,String mediaHost){
         super(true);this.userAgent=userAgent;this.browserHeaders=new HashMap<>(headers);this.mediaHost=mediaHost;
+    }
+    BrowserSessionDataSource(String server,String key){
+        this("NicoStream/Android",Collections.singletonMap("Authorization","Bearer "+key),Uri.parse(server).getHost());engineOrigin=server;
     }
     static Map<String,String> headersFor(String targetHost,String originalMediaHost,String userAgent,Map<String,String> captured,String scopedCookies){
         Map<String,String> result=new LinkedHashMap<>();
@@ -45,9 +49,10 @@ final class BrowserSessionDataSource extends BaseDataSource {
         try{
             for(int redirects=0;redirects<=5;redirects++){
                 if(!target.getProtocol().equals("https")||target.getUserInfo()!=null)throw new IOException("Il video richiede un indirizzo HTTPS valido");
+                if(!engineOrigin.isEmpty()&&!EngineAccess.sameOrigin(engineOrigin,target.toString()))throw new IOException("Redirect del motore non consentito");
                 connection=(HttpURLConnection)target.openConnection();
                 connection.setInstanceFollowRedirects(false);connection.setConnectTimeout(10000);connection.setReadTimeout(25000);
-                String cookies=CookieManager.getInstance().getCookie(target.toString());
+                String cookies=engineOrigin.isEmpty()?CookieManager.getInstance().getCookie(target.toString()):null;
                 for(Map.Entry<String,String> header:headersFor(target.getHost(),mediaHost,userAgent,browserHeaders,cookies).entrySet())connection.setRequestProperty(header.getKey(),header.getValue());
                 if(spec.position>0||spec.length!=C.LENGTH_UNSET){
                     String range="bytes="+spec.position+"-"+(spec.length!=C.LENGTH_UNSET?Long.toString(spec.position+spec.length-1):"");
@@ -55,7 +60,7 @@ final class BrowserSessionDataSource extends BaseDataSource {
                 }
                 int code=connection.getResponseCode();
                 for(Map.Entry<String,List<String>> entry:connection.getHeaderFields().entrySet()){
-                    if(entry.getKey()!=null&&entry.getKey().equalsIgnoreCase("Set-Cookie"))for(String value:entry.getValue())CookieManager.getInstance().setCookie(target.toString(),value);
+                    if(engineOrigin.isEmpty()&&entry.getKey()!=null&&entry.getKey().equalsIgnoreCase("Set-Cookie"))for(String value:entry.getValue())CookieManager.getInstance().setCookie(target.toString(),value);
                 }
                 if(code==301||code==302||code==303||code==307||code==308){
                     String location=connection.getHeaderField("Location");
