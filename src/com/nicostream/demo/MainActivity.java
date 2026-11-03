@@ -295,10 +295,32 @@ public class MainActivity extends Activity {
         view.setOnFocusChangeListener((v,on)->{float scale=on&&!item.optString("scAction").equals("episode")?1.025f:1f;v.animate().scaleX(scale).scaleY(scale).setDuration(120).start();if(on)focusItem=item.optString("id");});
         if(!section.equals("Scopri")&&item.optString("id").equals(focusItem))view.post(()->{if(view.isAttachedToWindow())view.requestFocus();});
     }
+    android.graphics.drawable.Drawable badgePlaceholder(String name){
+        final String[] words=name.trim().split("\\s+");String letters=words.length>1?words[0].substring(0,1)+words[words.length-1].substring(0,1):name.substring(0,Math.min(2,name.length()));final String initials=letters.toUpperCase(Locale.ROOT);
+        return new android.graphics.drawable.Drawable(){
+            final android.graphics.Paint paint=new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+            @Override public void draw(android.graphics.Canvas canvas){android.graphics.Rect r=getBounds();float x=r.exactCenterX(),y=r.exactCenterY();paint.setColor(Color.rgb(215,227,230));canvas.drawCircle(x,y,Math.min(r.width(),r.height())*.42f,paint);paint.setColor(Color.rgb(35,64,70));paint.setTypeface(Typeface.DEFAULT_BOLD);paint.setTextAlign(android.graphics.Paint.Align.CENTER);paint.setTextSize(Math.min(r.width(),r.height())*.3f);canvas.drawText(initials,x,y-(paint.ascent()+paint.descent())/2,paint);}
+            @Override public void setAlpha(int alpha){paint.setAlpha(alpha);}
+            @Override public void setColorFilter(android.graphics.ColorFilter filter){paint.setColorFilter(filter);}
+            @Override public int getOpacity(){return android.graphics.PixelFormat.TRANSLUCENT;}
+        };
+    }
+    View sportsArtwork(JSONObject visual){
+        LinearLayout panel=new LinearLayout(this);panel.setGravity(Gravity.CENTER);panel.setPadding(dp(10),dp(10),dp(10),dp(10));panel.setBackground(bg(Color.rgb(241,246,247),8));panel.setLayoutParams(new LinearLayout.LayoutParams(-1,dp(100)));
+        JSONArray participants=visual.optJSONArray("participants");if(participants==null)return panel;
+        for(int n=0;n<Math.min(2,participants.length());n++){
+            JSONObject participant=participants.optJSONObject(n);if(participant==null)continue;
+            if(n==1&&visual.optString("kind").equals("match")){TextView versus=text("VS",11,Color.rgb(85,105,112));versus.setGravity(Gravity.CENTER);panel.addView(versus,new LinearLayout.LayoutParams(dp(28),-1));}
+            ImageView logo=artwork(participant.optString("badge"),0,76);logo.setBackgroundColor(Color.TRANSPARENT);logo.setScaleType(ImageView.ScaleType.FIT_CENTER);logo.setContentDescription(participant.optString("name"));logo.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            if(logo.getDrawable()==null)logo.setImageDrawable(badgePlaceholder(participant.optString("name","Sport")));
+            LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,dp(76),1);lp.setMargins(dp(3),0,dp(3),0);panel.addView(logo,lp);
+        }
+        return panel;
+    }
     View card(JSONObject item){
         LinearLayout c=col();c.setPadding(dp(8),dp(8),dp(8),dp(10));focusCard(c,item);
         boolean poster=posterItem(item);int width=poster?168:208;
-        String art=item.optString("art");if(art.startsWith("https://"))c.addView(artwork(art,-1,poster?218:100));
+        String art=item.optString("art");JSONObject visual=item.optJSONObject("sportsArtwork");if(visual!=null)c.addView(sportsArtwork(visual));else if(art.startsWith("https://"))c.addView(artwork(art,-1,poster?218:100));
         else{TextView icon=title(item.optString("symbol","N"),32);icon.setGravity(Gravity.CENTER);icon.setTextColor(MINT);icon.setBackground(new GradientDrawable(GradientDrawable.Orientation.BL_TR,new int[]{Color.rgb(30,60,64),PANEL}));c.addView(icon,new LinearLayout.LayoutParams(-1,dp(poster?218:100)));}
         space(c,7);TextView name=title(item.optString("title"),15);name.setLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);c.addView(name);TextView metadata=text(item.optString("tag")+(item.optString("year").isEmpty()?"":" · "+item.optString("year")),10,MUTED);metadata.setSingleLine(true);metadata.setEllipsize(android.text.TextUtils.TruncateAt.END);c.addView(metadata);if(section.equals("Cerca")){TextView provider=text(item.optString("searchProvider"),10,MINT);provider.setSingleLine(true);provider.setEllipsize(android.text.TextUtils.TruncateAt.END);c.addView(provider);}
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(width),-2);p.setMargins(0,0,dp(12),dp(12));c.setLayoutParams(p);return c;
