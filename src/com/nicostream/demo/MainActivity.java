@@ -32,6 +32,12 @@ public class MainActivity extends Activity {
     int discoverScrollY=0;
     final Map<String,Integer> discoverRowOffsets=new HashMap<>();
     boolean discoverLoading=false;
+    boolean programHomeLoading=false;
+    long programHomeUpdated=0;
+    long programHomeRevision=0;
+    String programHomeServer="";
+    JSONObject programHomeFeed=null;
+    LinearLayout programHomeSlot;
     String discoverError="";
     long discoverUpdated=0;
     boolean playingStarted=false;
@@ -146,7 +152,7 @@ public class MainActivity extends Activity {
         menu.addView(nav);root.addView(menu);space(root,8);
         ScrollView scroll=new ScrollView(this);body=col();scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         if(section.equals("Scopri")){
-            discoverBody=body;discoverScroll=scroll;renderDiscover();loadDiscover(false);if(updates!=null)updates.maybeCheck();scroll.post(()->scroll.scrollTo(0,discoverScrollY));
+            discoverBody=body;discoverScroll=scroll;renderDiscover();loadDiscover(false);loadProgramHome(false);if(updates!=null)updates.maybeCheck();scroll.post(()->scroll.scrollTo(0,discoverScrollY));
             root.post(()->{if(root.findFocus()==null)nav.getChildAt(0).requestFocus();});return;
         }
         LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
@@ -200,12 +206,36 @@ public class MainActivity extends Activity {
             main.post(()->{if(!alive)return;discoverLoading=false;discoverFeed=feed;discoverUpdated=System.currentTimeMillis();prefs.edit().putString("discoverFeed",safeMetadata(feed)).putInt("discoverVersion",1).putLong("discoverUpdated",discoverUpdated).apply();if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body){boolean browsing=body.hasFocus();if(!browsing||force){renderDiscover();if(force)nav.getChildAt(0).requestFocus();}else{TextView update=button("Nuovi titoli disponibili · Aggiorna",()->{focusItem="";home();});body.addView(update,0);}}});
         }catch(Exception e){main.post(()->{if(!alive)return;discoverLoading=false;discoverError="Non riesco ad aggiornare i titoli. Puoi riprovare o usare Cerca.";if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body&&(!body.hasFocus()||force)){renderDiscover();if(force)nav.getChildAt(0).requestFocus();}});}});
     }
+    void loadProgramHome(boolean force){
+        if(server().isEmpty()||programHomeLoading)return;
+        final String endpoint=server();final long revision=programHomeRevision;
+        if(!force&&endpoint.equals(programHomeServer)&&System.currentTimeMillis()-programHomeUpdated<30000)return;
+        programHomeLoading=true;
+        worker.execute(()->{
+            try{JSONObject feed=api("/v1/home/programfeed",null);main.post(()->{
+                programHomeLoading=false;if(!alive||!server().equals(endpoint))return;
+                if(revision!=programHomeRevision){if(screen.equals("home")&&section.equals("Scopri"))loadProgramHome(true);return;}
+                programHomeServer=endpoint;programHomeFeed=feed;programHomeUpdated=System.currentTimeMillis();renderProgramHome();
+            });}catch(Exception e){main.post(()->{programHomeLoading=false;if(alive&&server().equals(endpoint)&&programHomeFeed==null&&programHomeSlot!=null&&programHomeSlot.isAttachedToWindow()){programHomeSlot.removeAllViews();programHomeSlot.addView(button("Program Feed · Riprova",()->loadProgramHome(true)));}});}
+        });
+    }
+    void renderProgramHome(){
+        if(programHomeSlot==null||!programHomeSlot.isAttachedToWindow())return;
+        programHomeSlot.removeAllViews();
+        if(programHomeFeed==null||!programHomeServer.equals(server())||!programHomeFeed.optBoolean("enabled"))return;
+        LinearLayout previousBody=body;body=programHomeSlot;
+        JSONArray proposals=programHomeFeed.optJSONArray("items");
+        if(proposals!=null&&proposals.length()>0)discoverRail("Program Feed · Oggi",proposals,false);
+        else{body.addView(title("Program Feed · Oggi",22));body.addView(text("Nessun evento futuro o in corso stimato nel palinsesto di oggi.",14,MUTED));space(body,20);}
+        body=previousBody;
+    }
     void renderDiscover(){
         if(heroPreview!=null){heroPreview.dispose();heroPreview=null;}
         body.removeAllViews();if(server().isEmpty()){body.addView(title("La tua demo",32));body.addView(text("Scegli un film per provare il player.",16,MUTED));space(body,18);for(int i=0;i<items.length();i++){JSONObject item=items.optJSONObject(i);if(item!=null)body.addView(card(item));}return;}JSONObject featured=discoverFeed==null?null:discoverFeed.optJSONObject("hero");
         if(featured!=null)discoverHero(featured);
         else if(currentSeries!=null&&!currentSeries.optString("url").isEmpty())discoverHero(currentSeries);
         else{body.addView(text("IL TUO SPAZIO PER FILM E SERIE",11,MINT));body.addView(title("Cosa guardiamo stasera?",32));body.addView(button("Cerca un titolo",this::searchCatalog));space(body,20);}
+        programHomeSlot=col();body.addView(programHomeSlot);programHomeSlot.post(this::renderProgramHome);
         continueShelf();
         JSONArray saved=favorites();if(saved.length()>0)discoverRail("La tua lista",saved,false);
         JSONArray rails=discoverFeed==null?null:discoverFeed.optJSONArray("rails");
@@ -217,7 +247,7 @@ public class MainActivity extends Activity {
             scroll.addView(row);body.addView(scroll);
         }
         if(rails==null||rails.length()==0){body.addView(text(discoverError.isEmpty()?providerOrigin().isEmpty()?"Apri StreamingCommunity dal Catalogo per attivare i suggerimenti.":"Caricamento dei titoli…":discoverError,14,MUTED));if(!discoverError.isEmpty())body.addView(button("Riprova",()->loadDiscover(true)));}
-        else{LinearLayout footer=new LinearLayout(this);footer.addView(text("Scopri qualcosa di nuovo, oppure riparti da dove eri rimasto.",12,MUTED),new LinearLayout.LayoutParams(0,-2,1));footer.addView(button("Aggiorna",()->loadDiscover(true)));body.addView(footer);if(!discoverError.isEmpty())body.addView(text(discoverError,12,MUTED));}
+        else{LinearLayout footer=new LinearLayout(this);footer.addView(text("Scopri qualcosa di nuovo, oppure riparti da dove eri rimasto.",12,MUTED),new LinearLayout.LayoutParams(0,-2,1));footer.addView(button("Aggiorna",()->{loadDiscover(true);loadProgramHome(true);}));body.addView(footer);if(!discoverError.isEmpty())body.addView(text(discoverError,12,MUTED));}
         if(server().isEmpty()&&(rails==null||rails.length()==0))for(int i=0;i<items.length();i++){JSONObject item=items.optJSONObject(i);if(item!=null)body.addView(card(item));}
         space(body,20);
     }
@@ -446,7 +476,7 @@ public class MainActivity extends Activity {
                     }else if(phase.equals("complete")){
                         JSONObject result=state.getJSONObject("result");
                         runOnUiThread(()->{
-                            if(!alive||generation!=request)return;currentJob="";dismissDialog();
+                            if(!alive||generation!=request)return;currentJob="";dismissDialog();if(item.optString("url").contains("android_settings=1")){programHomeUpdated=0;programHomeFeed=null;programHomeRevision++;}
                             if(result.optString("kind").equals("playback")){
                                 try{JSONObject media=new JSONObject(item.toString());media.put("url",result.getString("url"));media.put("mime",result.optString("mime"));media.put("headers",result.optJSONObject("headers"));media.put("subtitles",result.optJSONArray("subtitles"));media.put("drm",result.optJSONObject("drm"));media.put("isPlugin",false);media.put("resumeSource",PlaybackHistory.source(item));if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")){JSONObject next=PlaybackHistory.next(item,items);if(next!=null)media.put("nextEpisode",next);}if(item.has("resumeAt"))media.put("resumeAt",item.getLong("resumeAt"));play(media);}catch(Exception e){showError(e.getMessage());home();}
                             }else{
