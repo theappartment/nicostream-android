@@ -1,5 +1,7 @@
-Banner orizzontale corretto per Android TV.
+Connessione automatica al server NicoStream.
 
-- Risorsa effettiva 640 × 360 (16:9), con fondo nero esteso all’intero riquadro.
-- Marchio iOS centrato e proporzionato, senza bande laterali del launcher.
-- Icona rotonda Google TV invariata.
+- Indirizzo VPS fisso: https://nicostream.theappartment.it.
+- Il catalogo viene caricato automaticamente all’avvio sui dispositivi autorizzati.
+- Rimossi il campo indirizzo e il passaggio alla demo locale dalle impostazioni.
+- Le installazioni precedenti mantengono la chiave privata già salvata.
+- Una nuova installazione richiede solo l’autorizzazione iniziale del dispositivo; la chiave non è inclusa nell’APK pubblico.

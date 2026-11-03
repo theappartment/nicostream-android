@@ -83,17 +83,16 @@ public class MainActivity extends Activity {
         updates=new AppUpdates(this,()->screen.equals("home")&&section.equals("Scopri")&&currentJob.isEmpty());
         if(getIntent().getBooleanExtra("import_engine_setup",false)){
             File setup=new File(getExternalFilesDir(null),"engine-setup.json");
-            try{JSONObject config=new JSONObject(new String(java.nio.file.Files.readAllBytes(setup.toPath()),"UTF-8"));String endpoint=config.getString("server"),key=config.getString("key");if(endpoint.equals("https://nicostream.theappartment.it")&&key.matches("[a-f0-9]{64}"))prefs.edit().putString("server",endpoint).putString("serverKey",key).apply();}catch(Exception ignored){}finally{setup.delete();getIntent().removeExtra("import_engine_setup");}
+            try{JSONObject config=new JSONObject(new String(java.nio.file.Files.readAllBytes(setup.toPath()),"UTF-8"));String endpoint=config.getString("server"),key=config.getString("key");if(endpoint.equals(EngineAccess.SERVER)&&key.matches("[a-f0-9]{64}"))prefs.edit().putString("serverKey",key).apply();}catch(Exception ignored){}finally{setup.delete();getIntent().removeExtra("import_engine_setup");}
         }
-        String provision=getIntent().getStringExtra("demo_server");
-        if("http://127.0.0.1:18091".equals(provision))prefs.edit().putString("server",provision).apply();
+        prefs.edit().remove("server").apply();
         android.util.Log.i("NicoStreamPlayback","WIDEVINE_SUPPORTED="+android.media.MediaDrm.isCryptoSchemeSupported(C.WIDEVINE_UUID));
         getWindow().setStatusBarColor(BG);getWindow().setNavigationBarColor(BG);
         try{currentSeries=new JSONObject(prefs.getString("scLastTitle","{}"));}catch(Exception ignored){}
         try{if(prefs.getInt("discoverVersion",0)==1){discoverFeed=new JSONObject(prefs.getString("discoverFeed","{}"));discoverUpdated=0;}}catch(Exception ignored){}
-        localCatalog();home();if(!server().isEmpty())loadRoot();
+        localCatalog();if(prefs.getString("serverKey","").isEmpty())settings();else{home();loadRoot();}
     }
-    String server(){return prefs.getString("server","");}
+    String server(){return EngineAccess.SERVER;}
     void localCatalog(){try{items=new JSONObject(read(getAssets().open("catalog.json"))).getJSONArray("items");}catch(Exception e){items=new JSONArray();}}
     String read(InputStream in)throws IOException{
         try(InputStream s=in;ByteArrayOutputStream out=new ByteArrayOutputStream()){
@@ -109,6 +108,7 @@ public class MainActivity extends Activity {
         try{
             if(post!=null){c.setRequestMethod("POST");c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json");try(OutputStream out=c.getOutputStream()){out.write(post.toString().getBytes("UTF-8"));}}
             int code=c.getResponseCode();
+            if(code==401||code==403)throw new IOException("Accesso al server non autorizzato. Controlla la chiave nelle impostazioni.");
             JSONObject result=new JSONObject(read(code<400?c.getInputStream():c.getErrorStream()));
             if(code>=400)throw new IOException(result.optString("error","Errore server "+code));
             return result;
@@ -784,12 +784,20 @@ public class MainActivity extends Activity {
         screen="settings";base();ScrollView scroll=new ScrollView(this);LinearLayout content=col();scroll.addView(content);root.addView(scroll);
         content.addView(title("Aggiornamenti",26));content.addView(text("Versione "+BuildConfig.VERSION_NAME,15,MUTED));
         content.addView(button("Controlla aggiornamenti",()->updates.check(true)),new LinearLayout.LayoutParams(-2,-2));content.addView(text("Le nuove versioni arrivano da GitHub. Il controllo automatico avviene una volta al giorno.",13,MUTED));space(content,24);
-        content.addView(title("Il tuo motore, sulla VPS.",28));content.addView(text("Collega i tuoi tre addon al motore privato tramite indirizzo HTTPS e chiave di accesso.",16,MUTED));space(content,18);
-        EditText address=new EditText(this);address.setTextColor(WHITE);address.setTextSize(18);address.setSingleLine(true);address.setInputType(17);address.setHint("https://nicostream.theappartment.it");address.setHintTextColor(MUTED);address.setText(server());content.addView(address);space(content,12);
-        EditText accessKey=new EditText(this);accessKey.setTextColor(WHITE);accessKey.setSingleLine(true);accessKey.setInputType(129);accessKey.setSaveEnabled(false);accessKey.setHint("Chiave di accesso privata");accessKey.setHintTextColor(MUTED);accessKey.setText(prefs.getString("serverKey",""));content.addView(accessKey);space(content,12);
-        content.addView(button("Salva e carica catalogo",()->{String s=address.getText().toString().trim().replaceAll("/+$","");try{URI u=new URI(s);if(!("https".equals(u.getScheme())||("http".equals(u.getScheme())&&"127.0.0.1".equals(u.getHost())))||u.getHost()==null||u.getUserInfo()!=null||u.getQuery()!=null||u.getFragment()!=null)throw new Exception();}catch(Exception e){address.setError("Inserisci HTTPS o il tunnel locale");return;}prefs.edit().putString("server",s).putString("serverKey",accessKey.getText().toString().trim()).apply();loadRoot();}));space(content,12);
-        content.addView(button("Usa la demo locale",()->{cancelJob();history.clear();titles.clear();historySections.clear();prefs.edit().remove("server").apply();localCatalog();home();}));space(content,12);content.addView(button("‹ Torna al catalogo",this::home));
+        content.addView(title("Connessione a NicoStream",28));content.addView(text("Il server è già configurato. La connessione parte automaticamente all’apertura dell’app.",16,MUTED));space(content,12);
+        content.addView(text(EngineAccess.SERVER,16,MINT));space(content,12);
+        boolean authorized=!prefs.getString("serverKey","").isEmpty();
+        content.addView(text(authorized?"Accesso salvato su questo dispositivo.":"Autorizza questo dispositivo una sola volta con la tua chiave di accesso.",15,MUTED));space(content,12);
+        if(authorized){content.addView(button("Ricarica catalogo",this::loadRoot));space(content,12);}
+        content.addView(button(authorized?"Modifica chiave di accesso":"Autorizza dispositivo",this::editEngineAccess));space(content,12);
+        if(authorized)content.addView(button("‹ Torna al catalogo",this::home));
     }
+    void editEngineAccess(){
+        EditText key=new EditText(this);key.setSingleLine(true);key.setInputType(129);key.setSaveEnabled(false);key.setHint("Chiave privata NicoStream");key.setText(prefs.getString("serverKey",""));
+        AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Accesso al dispositivo").setView(key).setPositiveButton("Salva",null).setNegativeButton("Annulla",null).create();
+        dialog.setOnShowListener(ignored->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{String value=key.getText().toString().trim();if(!value.matches("[a-f0-9]{64}")){key.setError("La chiave deve contenere 64 caratteri esadecimali");return;}prefs.edit().putString("serverKey",value).apply();dialog.dismiss();loadRoot();}));dialog.show();
+    }
+
     @Override public void onBackPressed(){if(screen.equals("web")){if(automaticEpisode!=null){automaticEpisode=null;home();}else if(webCustomView!=null)closeWebFullscreen();else if(browser!=null&&browser.canGoBack())browser.goBack();else home();}else if(screen.equals("loading")){cancelJob();home();}else if(screen.equals("player")){if(selected!=null&&(selected.optBoolean("localBrowserSession")||selected.optString("addonId").equals("plugin.video.nikod.toonitalia")||selected.optString("addonId").equals("plugin.video.nikod.programfeed")))home();else details(selected);}else if(!screen.equals("home")){home();}else if(!history.isEmpty()){previous();}else super.onBackPressed();}
     @Override protected void onPause(){if(heroPreview!=null)heroPreview.setActive(false);savePlayback(true);super.onPause();if(player!=null)player.pause();if(browser!=null)browser.onPause();}
     @Override protected void onResume(){super.onResume();if(updates!=null)updates.onResume();if(heroPreview!=null)heroPreview.setActive(true);if(browser!=null)browser.onResume();}

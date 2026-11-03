@@ -2,6 +2,7 @@ package com.nicostream.demo;
 import java.net.URI;
 /** The private engine key belongs only to its exact HTTPS origin. */
 final class EngineAccess {
+ static final String SERVER="https://nicostream.theappartment.it";
  static boolean sameOrigin(String server,String target){
   try{URI a=new URI(server),b=new URI(target);return "https".equals(a.getScheme())&&"https".equals(b.getScheme())&&a.getHost()!=null&&a.getHost().equalsIgnoreCase(b.getHost())&&port(a)==port(b)&&a.getUserInfo()==null&&b.getUserInfo()==null;}catch(Exception e){return false;}
  }
