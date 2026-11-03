@@ -148,8 +148,8 @@ public class MainActivity extends Activity {
         heading.addView(title(section.equals("Preferiti")?"La tua selezione":server().isEmpty()?"Da esplorare":catalogTitle,21),new LinearLayout.LayoutParams(0,-2,1));
         if(!history.isEmpty())heading.addView(button("‹ Indietro",this::previous));
         if(!server().isEmpty())heading.addView(button("⌂ Addon",this::showAddons));body.addView(heading);
-        boolean nativeCatalog=!section.equals("Preferiti")&&items.length()>0&&items.optJSONObject(0)!=null&&!items.optJSONObject(0).optString("scAction").isEmpty();
-        boolean toonDirectory=!section.equals("Preferiti")&&items.length()>0&&items.optJSONObject(0)!=null&&items.optJSONObject(0).optString("addonId").equals("plugin.video.nikod.toonitalia");
+        boolean nativeCatalog=!section.equals("Cerca")&&!section.equals("Preferiti")&&items.length()>0&&items.optJSONObject(0)!=null&&!items.optJSONObject(0).optString("scAction").isEmpty();
+        boolean toonDirectory=!section.equals("Cerca")&&!section.equals("Preferiti")&&items.length()>0&&items.optJSONObject(0)!=null&&items.optJSONObject(0).optString("addonId").equals("plugin.video.nikod.toonitalia");
         boolean episodes=(nativeCatalog&&items.optJSONObject(0).optString("scAction").equals("episode"))||(!section.equals("Preferiti")&&toonEpisodes());
         boolean seasons=nativeCatalog&&items.optJSONObject(0).optString("scAction").equals("season");
         if(nativeCatalog){long id=items.optJSONObject(0).optLong("scTitleId");if(knownSeries.containsKey(id)){currentSeries=knownSeries.get(id);seriesSeasons=knownSeasons.get(id);}}
@@ -158,7 +158,7 @@ public class MainActivity extends Activity {
             HorizontalScrollView selector=new HorizontalScrollView(this);selector.setHorizontalScrollBarEnabled(false);LinearLayout tabs=new LinearLayout(this);
             for(int n=0;n<seriesSeasons.length();n++){JSONObject season=seriesSeasons.optJSONObject(n);if(season==null)continue;TextView tab=button(season.optString("title"),()->scCatalog(season));if(season.optInt("seasonNumber")==items.optJSONObject(0).optInt("seasonNumber"))tab.setTextColor(MINT);LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-2,-2);tp.setMargins(0,0,dp(8),0);tabs.addView(tab,tp);}selector.addView(tabs);body.addView(selector);space(body,12);
         }
-        if(!seasons)body.addView(text(toonDirectory?"ToonItalia · OK per aprire · Tieni premuto OK per sorgenti e preferiti":nativeCatalog?episodes?"Scegli una puntata · OK per guardare":"StreamingCommunity":section.equals("Preferiti")?"I titoli che hai salvato":"Esplora il catalogo",12,MUTED));space(body,10);
+        if(!seasons)body.addView(text(section.equals("Cerca")?"Risultati da tutti gli addon · La sorgente è indicata su ogni scheda":toonDirectory?"ToonItalia · OK per aprire · Tieni premuto OK per sorgenti e preferiti":nativeCatalog?episodes?"Scegli una puntata · OK per guardare":"StreamingCommunity":section.equals("Preferiti")?"I titoli che hai salvato":"Esplora il catalogo",12,MUTED));space(body,10);
         // Wrap rows on TV, allowing vertical navigation through large catalogues.
         JSONArray visible=section.equals("Preferiti")?favorites():items;
         int minimumCard=168;
@@ -180,7 +180,7 @@ public class MainActivity extends Activity {
         }
         if(count==0)body.addView(text(section.equals("Preferiti")?"Nessun preferito. Aggiungi un contenuto dalla sua scheda.":"Nessun titolo trovato. Prova con un’altra ricerca.",16,MUTED));
         space(body,18);body.addView(text("Frecce per navigare · OK per scegliere · Indietro per tornare",11,MUTED));
-        root.post(()->{if(root.findFocus()==null)nav.getChildAt(section.equals("Catalogo")?2:section.equals("Preferiti")?3:0).requestFocus();});
+        root.post(()->{if(root.findFocus()==null)nav.getChildAt(section.equals("Cerca")?1:section.equals("Catalogo")?2:section.equals("Preferiti")?3:0).requestFocus();});
     }
     String safeMetadata(JSONObject item){try{return StreamingCommunityCatalog.publicMetadata(item).toString();}catch(Exception e){return "{}";}}
     String providerOrigin(){
@@ -264,7 +264,7 @@ public class MainActivity extends Activity {
         boolean poster=posterItem(item);int width=poster?168:208;
         String art=item.optString("art");if(art.startsWith("https://"))c.addView(artwork(art,-1,poster?218:100));
         else{TextView icon=title(item.optString("symbol","N"),32);icon.setGravity(Gravity.CENTER);icon.setTextColor(MINT);icon.setBackground(new GradientDrawable(GradientDrawable.Orientation.BL_TR,new int[]{Color.rgb(30,60,64),PANEL}));c.addView(icon,new LinearLayout.LayoutParams(-1,dp(poster?218:100)));}
-        space(c,7);TextView name=title(item.optString("title"),15);name.setLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);c.addView(name);TextView metadata=text(item.optString("tag")+(item.optString("year").isEmpty()?"":" · "+item.optString("year")),10,MUTED);metadata.setSingleLine(true);metadata.setEllipsize(android.text.TextUtils.TruncateAt.END);c.addView(metadata);
+        space(c,7);TextView name=title(item.optString("title"),15);name.setLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);c.addView(name);TextView metadata=text(item.optString("tag")+(item.optString("year").isEmpty()?"":" · "+item.optString("year")),10,MUTED);metadata.setSingleLine(true);metadata.setEllipsize(android.text.TextUtils.TruncateAt.END);c.addView(metadata);if(section.equals("Cerca")){TextView provider=text(item.optString("searchProvider"),10,MINT);provider.setSingleLine(true);provider.setEllipsize(android.text.TextUtils.TruncateAt.END);c.addView(provider);}
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(width),-2);p.setMargins(0,0,dp(12),dp(12));c.setLayoutParams(p);return c;
     }
     View episodeRow(JSONObject item){
@@ -284,13 +284,57 @@ public class MainActivity extends Activity {
     boolean isFavorite(JSONObject item){if(item.optBoolean("localBrowserSession")&&currentSeries!=null)item=currentSeries;JSONArray saved=favorites();for(int i=0;i<saved.length();i++)if(saved.optJSONObject(i).optString("id").equals(item.optString("id")))return true;return false;}
     void toggleFavorite(JSONObject item){if(item.optBoolean("localBrowserSession")&&currentSeries!=null)item=currentSeries;JSONArray before=favorites(),after=new JSONArray();boolean found=false;for(int i=0;i<before.length();i++){JSONObject entry=before.optJSONObject(i);if(entry.optString("id").equals(item.optString("id"))){found=true;continue;}after.put(entry);}if(!found)try{after.put(StreamingCommunityCatalog.publicMetadata(item));}catch(Exception ignored){}prefs.edit().putString("favorites",after.toString()).apply();}
     void searchCatalog(){
-        if(section.equals("Catalogo")&&items.length()>0&&items.optJSONObject(0)!=null&&items.optJSONObject(0).optString("addonId").equals("plugin.video.nikod.toonitalia")){
-            try{action(new JSONObject().put("url","plugin://plugin.video.nikod.toonitalia/?action=search").put("title","Cerca in ToonItalia").put("addonId","plugin.video.nikod.toonitalia"));}catch(Exception ignored){}return;
+        if(server().isEmpty()){settings();return;}
+        EditText input=new EditText(this);input.setSingleLine(true);input.setHint("Titolo di un film, una serie o un anime");input.setTextColor(WHITE);input.setPadding(dp(20),dp(14),dp(20),dp(14));
+        new AlertDialog.Builder(this).setTitle("Cerca in tutti gli addon").setMessage("Stream4me / StreamingCommunity e ToonItalia").setView(input).setPositiveButton("Cerca",(d,w)->{String query=input.getText().toString().trim();if(!query.isEmpty())unifiedSearch(query);}).setNegativeButton("Annulla",null).show();
+    }
+    void unifiedSearch(String query){
+        if(!currentJob.isEmpty())return;
+        final long request=++generation;final String origin=providerOrigin(),ua=WebSettings.getDefaultUserAgent(this);
+        final JSONArray[] results={new JSONArray(),new JSONArray()};final String[] errors={"",""};final int[] pending={2};
+        screen="loading";base();root.addView(title("Cerco “"+query+"”",26));root.addView(text("Stream4me / StreamingCommunity e ToonItalia…",16,MUTED));root.addView(new ProgressBar(this));root.addView(button("Annulla",()->{cancelJob();home();}));
+        for(int provider=0;provider<2;provider++){
+            final int index=provider;
+            worker.execute(()->{
+                JSONArray found=new JSONArray();String failure="";
+                try{
+                    if(index==0){
+                        if(origin.isEmpty())throw new IOException("Apri StreamingCommunity dal Catalogo per attivare questa sorgente.");
+                        found=StreamingCommunityCatalog.search(scPage(origin+"/it/search?q="+Uri.encode(query),ua),origin,query);
+                    }else found=toonSearch(query,request);
+                }catch(Exception e){failure=index==0?(origin.isEmpty()?"Stream4me: apri StreamingCommunity dal Catalogo per attivare la ricerca.":"Stream4me non disponibile. Riprova tra poco."):"ToonItalia non disponibile. Riprova tra poco.";}
+                final JSONArray ready=found;final String error=failure;
+                main.post(()->{
+                    if(!alive||generation!=request)return;results[index]=ready;errors[index]=error;
+                    if(--pending[0]!=0)return;
+                    try{
+                        pushHistory();items=UnifiedSearch.combine(results[0],results[1]);
+                        for(String problem:errors)if(!problem.isEmpty())items.put(new JSONObject().put("title",problem).put("description","Gli altri risultati restano disponibili. Usa Cerca per riprovare.").put("isNotice",true).put("symbol","!"));
+                        if(items.length()==0)items.put(new JSONObject().put("title","Nessun risultato per “"+query+"”").put("description","Prova un altro titolo o una parte del nome.").put("isNotice",true));
+                        catalogTitle="Risultati per “"+query+"”";section="Cerca";focusItem="";home();
+                    }catch(Exception e){home();showError("Non riesco a mostrare i risultati.");}
+                });
+            });
         }
-        String origin=providerOrigin();
-        if(origin.isEmpty()){ArrayList<JSONArray> directories=new ArrayList<>();directories.add(items);directories.addAll(history);for(JSONArray directory:directories)for(int i=0;i<directory.length();i++){JSONObject route=directory.optJSONObject(i);if(route!=null&&route.optString("title").equalsIgnoreCase("Global search")){action(route);return;}}loadRoot();return;}
-        final String host=origin;EditText input=new EditText(this);input.setSingleLine(true);input.setHint("Titolo di un film o di una serie");input.setTextColor(WHITE);input.setPadding(dp(20),dp(14),dp(20),dp(14));
-        new AlertDialog.Builder(this).setTitle("Cerca qualcosa da guardare").setView(input).setPositiveButton("Cerca",(d,w)->{String query=input.getText().toString().trim();if(query.isEmpty())return;try{focusItem="";scCatalog(new JSONObject().put("url",host+"/it/search?q="+Uri.encode(query)).put("isWeb",true).put("title","Risultati per “"+query+"”"));}catch(Exception ignored){}}).setNegativeButton("Annulla",null).show();
+    }
+    JSONArray toonSearch(String query,long request)throws Exception {
+        String job="";
+        try{
+            if(!alive||generation!=request)throw new IOException("Ricerca annullata");
+            job=api("/v1/actions",new JSONObject().put("url","plugin://plugin.video.nikod.toonitalia/?action=search_results&q="+Uri.encode(query))).getString("job");
+            if(!alive||generation!=request)throw new IOException("Ricerca annullata");
+            currentJob=job;long deadline=System.currentTimeMillis()+60000;
+            while(alive&&generation==request&&System.currentTimeMillis()<deadline){
+                JSONObject state=api("/v1/jobs/"+job,null);String phase=state.optString("status");
+                if(phase.equals("complete")){
+                    JSONObject result=state.getJSONObject("result");if(!result.optString("kind").equals("directory"))throw new IOException("Risposta inattesa");
+                    JSONArray list=result.optJSONArray("items");return list==null?new JSONArray():list;
+                }
+                if(phase.equals("error")||phase.equals("cancelled")||phase.equals("dialog"))throw new IOException("Ricerca non disponibile");
+                Thread.sleep(400);
+            }
+            throw new IOException("Ricerca scaduta");
+        }finally{if(!job.isEmpty()){cancelRemote(job);if(currentJob.equals(job))currentJob="";}}
     }
     void openItem(JSONObject item){rememberDiscover();focusItem=item.optString("id");if(item.optBoolean("isNotice")){new AlertDialog.Builder(this).setTitle(item.optString("title")).setMessage(item.optString("description")).setPositiveButton("OK",null).show();return;}if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")&&item.optBoolean("isPlayable")){chooseEpisode(item);return;}if(item.optString("scAction").equals("episode")){chooseEpisode(item);return;}if(!item.optString("scAction").isEmpty()||isScSearch(item)){scCatalog(item);return;}if(item.optBoolean("isWeb")){openSourcePage(item);return;}if((item.optString("url").startsWith("plugin://")||item.optString("url").startsWith("/v1/route/"))){action(item);return;}details(item);}
     boolean posterItem(JSONObject item){return item.optString("scAction").equals("title")||(item.optString("addonId").equals("plugin.video.nikod.toonitalia")&&item.optString("action").equals("title"));}

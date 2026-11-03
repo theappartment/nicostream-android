@@ -1,8 +1,7 @@
-NicoStream per Android e Android TV.
+Ricerca unica per Stream4me / StreamingCommunity e ToonItalia.
 
-- Aggiornamenti dall’app tramite GitHub Releases, con verifica del download e della firma.
-- Home con raccolte, trailer silenzioso e navigazione tramite telecomando.
-- Player nativo, ripresa dal punto salvato e Continua a guardare.
-- Catalogo Stream4me e ToonItalia tramite un motore VPS compatibile.
-
-Per aggiornare: Impostazioni → Controlla aggiornamenti. Android richiede la conferma dell’installazione. Preferenze e progressi restano sul dispositivo.
+- Un solo campo Cerca da qualsiasi sezione, anche dentro ToonItalia.
+- Risultati raccolti in una griglia con la sorgente indicata su ogni scheda.
+- Titoli uguali di sorgenti diverse restano selezionabili separatamente.
+- Se un servizio non risponde, gli altri risultati rimangono disponibili.
+- Apertura delle serie, stagioni, episodi e ritorno ai risultati conservati.
