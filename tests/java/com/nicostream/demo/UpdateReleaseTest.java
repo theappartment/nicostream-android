@@ -1,0 +1,13 @@
+package com.nicostream.demo;
+import org.junit.Test;
+import org.json.*;
+import static org.junit.Assert.*;
+public class UpdateReleaseTest {
+    final String repo="theappartment/nicostream-android",url="https://github.com/theappartment/nicostream-android/releases/download/android-v0.3.1/NicoStream.apk";
+    JSONObject manifest()throws Exception{return new JSONObject().put("schema",1).put("packageName","com.nicostream.demo").put("apkName","NicoStream.apk").put("versionCode",4).put("versionName","0.3.1").put("size",20000).put("sha256",new String(new char[64]).replace('\0','a'));}
+    @Test public void validUpdateContract()throws Exception {UpdateRelease r=new UpdateRelease(manifest(),repo,url,"Novità");assertEquals(4,r.versionCode);assertEquals(20000,r.size);assertEquals("0.3.1",r.versionName);}
+    @Test public void foreignPackageAndBadHashAreRejected()throws Exception {for(JSONObject m:new JSONObject[]{manifest().put("packageName","other.app"),manifest().put("sha256","bad"),manifest().put("size",UpdateRelease.MAX_APK+1),manifest().put("versionCode",0)}){try{new UpdateRelease(m,repo,url,"");fail();}catch(IllegalArgumentException expected){}}}
+    @Test public void assetsStayInConfiguredRepository(){assertTrue(UpdateRelease.assetUrl(url,repo));assertFalse(UpdateRelease.assetUrl(url.replace("nicostream-android","other"),repo));assertFalse(UpdateRelease.assetUrl(url.replace("https:","http:"),repo));assertFalse(UpdateRelease.assetUrl(url+"?redirect=evil",repo));assertFalse(UpdateRelease.assetUrl("https://github.com@evil.test/"+repo+"/releases/download/v1/app.apk",repo));}
+    @Test public void onlyGithubHttpsRedirectsAreFollowed(){assertTrue(UpdateRelease.downloadHost("https://release-assets.githubusercontent.com/path?signature=value"));assertTrue(UpdateRelease.downloadHost("https://api.github.com/repos/owner/repo/releases"));assertFalse(UpdateRelease.downloadHost("https://github.com.evil.test/file"));assertFalse(UpdateRelease.downloadHost("http://github.com/file"));assertFalse(UpdateRelease.downloadHost("https://user:pass@github.com/file"));}
+    @Test public void selectsNamedAssetAndIgnoresForeignDownload()throws Exception {JSONObject release=new JSONObject().put("assets",new JSONArray().put(new JSONObject().put("name","NicoStream.apk").put("browser_download_url",url)));assertEquals(url,UpdateRelease.asset(release,"NicoStream.apk",repo));assertEquals("",UpdateRelease.asset(release,"other.apk",repo));release.getJSONArray("assets").getJSONObject(0).put("browser_download_url","https://evil.test/app.apk");assertEquals("",UpdateRelease.asset(release,"NicoStream.apk",repo));}
+}

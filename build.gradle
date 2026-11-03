@@ -1,0 +1,35 @@
+plugins { id 'com.android.application' version '8.13.1' }
+def appVersion = new Properties()
+file('version.properties').withInputStream { appVersion.load(it) }
+android {
+    buildFeatures { buildConfig true }
+    namespace 'com.nicostream.demo'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'com.nicostream.demo'
+        minSdk 26
+        targetSdk 35
+        versionCode = (project.findProperty('appVersionCode') ?: appVersion.getProperty('versionCode')).toInteger()
+        versionName = (project.findProperty('appVersionName') ?: appVersion.getProperty('versionName'))
+        buildConfigField 'String', 'UPDATE_REPOSITORY', '"theappartment/nicostream-android"'
+    }
+    signingConfigs {
+        debug { if (file('.signing/demo.keystore').exists()) { storeFile file('.signing/demo.keystore'); storePassword 'android'; keyAlias 'demo'; keyPassword 'android' } }
+        official {
+            storeFile file(System.getenv('ANDROID_KEYSTORE_FILE') ?: '.signing/demo.keystore')
+            storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD') ?: 'android'
+            keyAlias System.getenv('ANDROID_KEY_ALIAS') ?: 'demo'
+            keyPassword System.getenv('ANDROID_KEY_PASSWORD') ?: 'android'
+        }
+    }
+    buildTypes { release { signingConfig signingConfigs.official; minifyEnabled false } }
+    sourceSets { main { manifest.srcFile 'AndroidManifest.xml'; java.srcDirs = ['src']; res.srcDirs = ['res']; assets.srcDirs = ['assets'] }; test { java.srcDirs = ['tests/java'] } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_1_8; targetCompatibility JavaVersion.VERSION_1_8 }
+}
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20240303'
+    implementation 'androidx.media3:media3-exoplayer:1.9.2'
+    implementation 'androidx.media3:media3-exoplayer-hls:1.9.2'
+    implementation 'androidx.media3:media3-exoplayer-dash:1.9.2'
+}

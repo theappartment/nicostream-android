@@ -1,0 +1,26 @@
+{
+  "items": [
+    {
+      "id": "bunny",
+      "title": "Big Buck Bunny · Clip",
+      "category": "Cinema",
+      "tag": "CLIP DEMO · ANIMAZIONE",
+      "description": "Una giornata tranquilla, tre piccoli guastafeste e un coniglio fuori dal comune. Il corto aperto della Blender Foundation per provare il player di NicoStream.",
+      "duration": "10 sec",
+      "color": "#335D58",
+      "symbol": "B",
+      "url": "https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/720/Big_Buck_Bunny_720_10s_1MB.mp4"
+    },
+    {
+      "id": "sintel",
+      "title": "Sintel · Trailer",
+      "category": "Cinema",
+      "tag": "TRAILER · AVVENTURA",
+      "description": "Un viaggio alla ricerca di un piccolo drago. Un cortometraggio della Blender Foundation per esplorare la demo.",
+      "duration": "1 min",
+      "color": "#855A45",
+      "symbol": "S",
+      "url": "https://download.blender.org/durian/trailer/sintel_trailer-480p.mp4"
+    }
+  ]
+}
