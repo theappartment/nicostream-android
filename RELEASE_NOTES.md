@@ -1,6 +1,5 @@
-Icona NicoStream condivisa con iOS.
+Icona iOS correttamente visibile sui launcher rotondi Google TV.
 
-- Icona adattiva Android con il marchio originale iOS bianco su nero.
-- Riquadro Google TV / Android TV con lo stesso marchio.
-- Nome nel launcher: NicoStream.
-- Impostazioni, accesso alla VPS e cronologia conservati nell’aggiornamento.
+- Margine di sicurezza nel livello adattivo per mostrare interamente parentesi e asterisco.
+- Marchio originale iOS conservato senza modifiche all’immagine.
+- Banner Android TV e impostazioni conservati.
