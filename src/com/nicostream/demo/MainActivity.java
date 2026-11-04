@@ -781,7 +781,11 @@ public class MainActivity extends Activity {
         controls.addView(button("‹ Catalogo",this::home));controls.addView(button("−10 s",()->{seekBy(-10000);}));
         pauseButton=button("Ⅱ Pausa",this::togglePlay);controls.addView(pauseButton);
         controls.addView(button("+10 s",()->{seekBy(10000);}));controls.addView(button("Audio / CC",this::tracks));if(item.optJSONObject("nextEpisode")!=null)controls.addView(button("Successiva ▶",()->startNext(item.optJSONObject("nextEpisode"))));if(item.optBoolean("localBrowserSession"))controls.addView(button("Player web",()->returnToSource(item)));transport.addView(controls);
-        for(int n=0;n<controls.getChildCount();n++)controls.getChildAt(n).setId(View.generateViewId());
+        for(int n=0;n<controls.getChildCount();n++){
+            View control=controls.getChildAt(n);control.setId(View.generateViewId());
+            LinearLayout.LayoutParams spacing=new LinearLayout.LayoutParams(-2,-2);if(n>0)spacing.leftMargin=dp(10);control.setLayoutParams(spacing);
+            if(control instanceof TextView){((TextView)control).setTextSize(14);control.setPadding(dp(14),dp(12),dp(14),dp(12));}
+        }
         for(int n=0;n<controls.getChildCount();n++){
             View control=controls.getChildAt(n);control.setNextFocusLeftId(controls.getChildAt(Math.max(0,n-1)).getId());control.setNextFocusRightId(controls.getChildAt(Math.min(controls.getChildCount()-1,n+1)).getId());control.setNextFocusUpId(seek.getId());control.setNextFocusDownId(control.getId());
         }

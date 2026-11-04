@@ -5,3 +5,4 @@ Schede delle serie ispirate al layout iPad.
 - Tutte le stagioni visibili come pulsanti sopra la lista degli episodi; apertura sulla stagione da riprendere o sulla prima disponibile.
 - Punto di ripresa, barra di avanzamento e stato Guardato visibili.
 - Navigazione con telecomando tra le due colonne e ritorno al catalogo mantenuti.
+- Comandi del player separati da spazi regolari, con pulsanti più compatti e navigazione con telecomando mantenuta.
