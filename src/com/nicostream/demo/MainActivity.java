@@ -59,6 +59,11 @@ public class MainActivity extends Activity {
     final Handler main=new Handler(Looper.getMainLooper());
     TextView status,clock,pauseButton,sourceDomainStatus;
     ExoPlayer player;
+    SearchScreen searchScreen;
+    boolean unifiedSearchBusy;
+    String searchBackSection="Scopri",searchBackTitle="Stream4me",searchLastQuery="";
+    JSONArray searchBackItems=new JSONArray(),searchLastResults;
+
     PosterBadges posterBadges;
     HeroCarousel heroCarousel;
     volatile long heroEnrichmentGeneration;
@@ -139,6 +144,7 @@ public class MainActivity extends Activity {
     void space(LinearLayout l,int h){l.addView(new View(this),new LinearLayout.LayoutParams(1,dp(h)));}
     TextView button(String label,Runnable action){TextView b=text(label,16,WHITE);b.setGravity(Gravity.CENTER);b.setPadding(dp(20),dp(13),dp(20),dp(13));b.setMinHeight(dp(46));b.setBackground(focus());b.setFocusable(true);b.setClickable(true);b.setOnClickListener(v->action.run());return b;}
     void base(){
+        if(searchScreen!=null){searchScreen.close();searchScreen=null;if(unifiedSearchBusy){unifiedSearchBusy=false;cancelJob();}}
         revealKey=KeyEvent.KEYCODE_UNKNOWN;
         if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}
         savePlayback(false);playingSource=null;playingStarted=false;
@@ -149,23 +155,28 @@ public class MainActivity extends Activity {
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         transport=null;root=col();root.setBackgroundColor(BG);root.setPadding(dp(26),dp(18),dp(26),dp(12));setContentView(root);
     }
-    void home(){
-        screen="home";base();
-        root.setPadding(dp(26),dp(8),dp(26),dp(12));
+    void addNavigation(String activeSection){
         HorizontalScrollView menu=new HorizontalScrollView(this);menu.setHorizontalScrollBarEnabled(false);nav=new LinearLayout(this);
         for(String s:new String[]{"Scopri","Cerca","Catalogo","Preferiti","Impostazioni"}){
             TextView b=button(s,()->{if(s.equals("Impostazioni")){settings();return;}if(s.equals("Cerca")){searchCatalog();return;}if(s.equals("Scopri")){discoverScrollY=0;history.clear();titles.clear();historySections.clear();items=addonRoot;catalogTitle="Stream4me";section=s;focusItem="";home();return;}if(s.equals("Catalogo")){showAddons();return;}section=s;focusItem="";home();});
-            b.setTextSize(14);b.setTextColor(section.equals(s)?WHITE:MUTED);b.setPadding(dp(14),dp(7),dp(14),dp(5));b.setMinHeight(dp(40));
+            b.setTextSize(14);b.setTextColor(activeSection.equals(s)?WHITE:MUTED);b.setPadding(dp(14),dp(7),dp(14),dp(5));b.setMinHeight(dp(40));
             StateListDrawable tabBackground=new StateListDrawable();GradientDrawable active=bg(Color.rgb(29,46,54),6);active.setStroke(dp(1),MINT);tabBackground.addState(new int[]{android.R.attr.state_focused},active);tabBackground.addState(new int[]{android.R.attr.state_pressed},active);tabBackground.addState(new int[]{},bg(Color.TRANSPARENT,6));b.setBackground(tabBackground);
-            GradientDrawable underline=bg(section.equals(s)?WHITE:Color.TRANSPARENT,1);underline.setSize(dp(20),dp(2));b.setCompoundDrawablePadding(dp(4));b.setCompoundDrawablesWithIntrinsicBounds(null,null,null,underline);
+            GradientDrawable underline=bg(activeSection.equals(s)?WHITE:Color.TRANSPARENT,1);underline.setSize(dp(20),dp(2));b.setCompoundDrawablePadding(dp(4));b.setCompoundDrawablesWithIntrinsicBounds(null,null,null,underline);
             LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,dp(42));p.setMargins(0,0,dp(6),0);nav.addView(b,p);
         }
         menu.addView(nav);root.addView(menu);space(root,8);
+    }
+    void home(){
+        if(section.equals("Cerca")&&searchLastResults!=null){searchCatalog(searchLastQuery,searchLastResults);return;}
+        screen="home";base();
+        root.setPadding(dp(26),dp(8),dp(26),dp(12));
+        addNavigation(section);
         ScrollView scroll=new CenteredScrollView(this);body=col();scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         if(section.equals("Scopri")){
             discoverBody=body;discoverScroll=scroll;renderDiscover();loadDiscover(false);refreshSourceIndex(false,null);loadProgramHome(false);if(updates!=null)updates.maybeCheck();scroll.post(()->scroll.scrollTo(0,discoverScrollY));
             root.post(()->{if(root.findFocus()==null)nav.getChildAt(0).requestFocus();});return;
         }
+        if(section.equals("Cerca")){String query=prefs.getString("lastSearchQuery","");if(!query.isEmpty()){body.addView(button("⌕ "+query+" · Modifica ricerca",()->searchCatalog(query)),new LinearLayout.LayoutParams(-2,-2));space(body,12);}}
         LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
         heading.addView(title(section.equals("Preferiti")?"La tua selezione":server().isEmpty()?"Da esplorare":catalogTitle,21),new LinearLayout.LayoutParams(0,-2,1));
         if(!history.isEmpty())heading.addView(button("‹ Indietro",this::previous));
@@ -416,7 +427,7 @@ public class MainActivity extends Activity {
     void focusCard(View view,JSONObject item){
         view.setBackground(focus());view.setFocusable(true);view.setClickable(true);view.setContentDescription(item.optString("title"));view.setOnClickListener(v->openItem(item));view.setTag(item);view.setOnLongClickListener(v->{if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")){toonActions(item);return true;}return false;});
         view.setOnFocusChangeListener((v,on)->{float scale=on&&!item.optString("scAction").equals("episode")?1.025f:1f;v.animate().scaleX(scale).scaleY(scale).setDuration(120).start();if(on)focusItem=item.optString("id");});
-        if(!section.equals("Scopri")&&item.optString("id").equals(focusItem))view.post(()->{if(view.isAttachedToWindow())view.requestFocus();});
+        if(screen.equals("home")&&!section.equals("Scopri")&&item.optString("id").equals(focusItem))view.post(()->{if(view.isAttachedToWindow())view.requestFocus();});
     }
     android.graphics.drawable.Drawable badgePlaceholder(String name){
         final String[] words=name.trim().split("\\s+");String letters=words.length>1?words[0].substring(0,1)+words[words.length-1].substring(0,1):name.substring(0,Math.min(2,name.length()));final String initials=letters.toUpperCase(Locale.ROOT);
@@ -464,37 +475,58 @@ public class MainActivity extends Activity {
     JSONArray favorites(){try{return new JSONArray(prefs.getString("favorites","[]"));}catch(Exception e){return new JSONArray();}}
     boolean isFavorite(JSONObject item){if(item.optBoolean("localBrowserSession")&&currentSeries!=null)item=currentSeries;JSONArray saved=favorites();for(int i=0;i<saved.length();i++)if(saved.optJSONObject(i).optString("id").equals(item.optString("id")))return true;return false;}
     void toggleFavorite(JSONObject item){if(item.optBoolean("localBrowserSession")&&currentSeries!=null)item=currentSeries;JSONArray before=favorites(),after=new JSONArray();boolean found=false;for(int i=0;i<before.length();i++){JSONObject entry=before.optJSONObject(i);if(entry.optString("id").equals(item.optString("id"))){found=true;continue;}after.put(entry);}if(!found)try{after.put(StreamingCommunityCatalog.publicMetadata(item));}catch(Exception ignored){}prefs.edit().putString("favorites",after.toString()).apply();}
-    void searchCatalog(){
+    void searchCatalog(){searchCatalog("",null);}
+    void searchCatalog(String initial){searchCatalog(initial,null);}
+    void searchCatalog(String initial,JSONArray preset){
         if(server().isEmpty()){settings();return;}
-        EditText input=new EditText(this);input.setSingleLine(true);input.setHint("Titolo di un film, una serie o un anime");input.setTextColor(WHITE);input.setPadding(dp(20),dp(14),dp(20),dp(14));
-        new AlertDialog.Builder(this).setTitle("Cerca in tutti gli addon").setMessage("Stream4me / StreamingCommunity e ToonItalia").setView(input).setPositiveButton("Cerca",(d,w)->{String query=input.getText().toString().trim();if(!query.isEmpty())unifiedSearch(query);}).setNegativeButton("Annulla",null).show();
+        if(!screen.equals("search")&&!section.equals("Cerca")){searchBackSection=section;searchBackTitle=catalogTitle;searchBackItems=items;}
+        rememberDiscover();screen="search";base();root.setPadding(dp(26),dp(8),dp(26),dp(12));addNavigation("Cerca");
+        searchScreen=new SearchScreen(this,initial,preset,this::searchSuggestions,this::unifiedSearch);root.addView(searchScreen.view,new LinearLayout.LayoutParams(-1,0,1));refreshSourceIndex(false,null);
     }
-    void unifiedSearch(String query){withSourceIndex(()->unifiedSearchResolved(query));}
+    void cancelSearch(){unifiedSearchBusy=false;cancelJob();if(searchScreen!=null)searchScreen.setSearching(false);}
+    void openSearchItem(JSONObject item,String query,JSONArray shown){
+        if(unifiedSearchBusy){Toast.makeText(this,"Ricerca in corso: attendi o premi Annulla",Toast.LENGTH_SHORT).show();return;}
+        searchLastQuery=query;searchLastResults=shown;String remembered=SearchMemory.clean(item.optString("title",query));
+        JSONArray recent;try{recent=new JSONArray(prefs.getString("recentSearches","[]"));}catch(Exception ignored){recent=new JSONArray();}prefs.edit().putString("recentSearches",SearchMemory.remember(recent,remembered).toString()).apply();
+        items=shown;section="Cerca";catalogTitle="Risultati per “"+query+"”";openItem(item);
+    }
+    void searchItemActions(JSONObject item,String query,JSONArray shown){
+        if(unifiedSearchBusy)return;searchLastQuery=query;searchLastResults=shown;items=shown;section="Cerca";catalogTitle="Risultati per “"+query+"”";toonActions(item);
+    }
+    void searchSuggestions(String query,java.util.function.BiConsumer<JSONArray,Boolean> complete){
+        final String origin=providerOrigin(),ua=WebSettings.getDefaultUserAgent(this);
+        if(origin.isEmpty()){complete.accept(new JSONArray(),true);return;}
+        worker.execute(()->{JSONArray found=new JSONArray();boolean failed=false;try{JSONObject props=scPage(origin+"/it/search?q="+Uri.encode(query),ua);found=StreamingCommunityCatalog.search(props,props.optString("_sourceOrigin",origin),query);}catch(Exception ignored){failed=true;}
+            final JSONArray ready=found;final boolean unavailable=failed;main.post(()->{if(alive)complete.accept(ready,unavailable);});
+        });
+    }
+    void unifiedSearch(String raw){
+        final String query=SearchMemory.clean(raw);if(query.isEmpty())return;if(unifiedSearchBusy||!currentJob.isEmpty()){Toast.makeText(this,"Attendi il completamento dell’operazione in corso",Toast.LENGTH_SHORT).show();return;}
+        JSONArray recent;try{recent=new JSONArray(prefs.getString("recentSearches","[]"));}catch(Exception ignored){recent=new JSONArray();}
+        prefs.edit().putString("recentSearches",SearchMemory.remember(recent,query).toString()).putString("lastSearchQuery",query).apply();final SearchScreen source=searchScreen;
+        withSourceIndex(()->{if(source==null||source==searchScreen)unifiedSearchResolved(query);});
+    }
     void unifiedSearchResolved(String query){
-        if(!currentJob.isEmpty())return;
-        final long request=++generation;final String origin=providerOrigin(),ua=WebSettings.getDefaultUserAgent(this);
+        if(!currentJob.isEmpty())return;if(searchScreen==null)searchCatalog(query);
+        final SearchScreen target=searchScreen;final long request=++generation;final String origin=providerOrigin(),ua=WebSettings.getDefaultUserAgent(this);
         final JSONArray[] results={new JSONArray(),new JSONArray()};final String[] errors={"",""};final int[] pending={2};
-        screen="loading";base();root.addView(title("Cerco “"+query+"”",26));root.addView(text("Stream4me / StreamingCommunity e ToonItalia…",16,MUTED));root.addView(new ProgressBar(this));root.addView(button("Annulla",()->{cancelJob();home();}));
+        unifiedSearchBusy=true;target.setSearching(true);
         for(int provider=0;provider<2;provider++){
             final int index=provider;
             worker.execute(()->{
                 JSONArray found=new JSONArray();String failure="";
                 try{
-                    if(index==0){
-                        if(origin.isEmpty())throw new IOException("Dominio StreamingCommunity temporaneamente non disponibile.");
-                        JSONObject page=scPage(origin+"/it/search?q="+Uri.encode(query),ua);found=StreamingCommunityCatalog.search(page,page.optString("_sourceOrigin",origin),query);
-                    }else found=toonSearch(query,request);
-                }catch(Exception e){failure=index==0?(origin.isEmpty()?"StreamingCommunity: dominio temporaneamente non disponibile. Riprova tra poco.":"Stream4me non disponibile. Riprova tra poco."):"ToonItalia non disponibile. Riprova tra poco.";}
+                    if(index==0){if(origin.isEmpty())throw new IOException("Dominio non disponibile");JSONObject page=scPage(origin+"/it/search?q="+Uri.encode(query),ua);found=StreamingCommunityCatalog.search(page,page.optString("_sourceOrigin",origin),query);}
+                    else found=toonSearch(query,request);
+                }catch(Exception e){failure=index==0?"StreamingCommunity non disponibile. Riprova tra poco.":"ToonItalia non disponibile. Riprova tra poco.";}
                 final JSONArray ready=found;final String error=failure;
                 main.post(()->{
-                    if(!alive||generation!=request)return;results[index]=ready;errors[index]=error;
-                    if(--pending[0]!=0)return;
+                    if(!alive||generation!=request||searchScreen!=target)return;results[index]=ready;errors[index]=error;if(--pending[0]!=0)return;unifiedSearchBusy=false;
                     try{
-                        pushHistory();items=UnifiedSearch.combine(results[0],results[1]);
-                        for(String problem:errors)if(!problem.isEmpty())items.put(new JSONObject().put("title",problem).put("description","Gli altri risultati restano disponibili. Usa Cerca per riprovare.").put("isNotice",true).put("symbol","!"));
-                        if(items.length()==0)items.put(new JSONObject().put("title","Nessun risultato per “"+query+"”").put("description","Prova un altro titolo o una parte del nome.").put("isNotice",true));
-                        catalogTitle="Risultati per “"+query+"”";section="Cerca";focusItem="";home();
-                    }catch(Exception e){home();showError("Non riesco a mostrare i risultati.");}
+                        JSONArray combined=UnifiedSearch.combine(results[0],results[1]);JSONArray cached;try{cached=new JSONArray(prefs.getString("searchTitles","[]"));}catch(Exception ignored){cached=new JSONArray();}prefs.edit().putString("searchTitles",SearchMemory.cacheTitles(cached,combined).toString()).apply();
+                        for(String problem:errors)if(!problem.isEmpty())combined.put(new JSONObject().put("title",problem).put("isNotice",true));
+                        searchLastQuery=query;searchLastResults=combined;target.showResults(query,combined);
+                    }catch(Exception e){target.setSearching(false);Toast.makeText(this,"Non riesco a mostrare i risultati",Toast.LENGTH_SHORT).show();}
                 });
             });
         }
@@ -796,6 +828,10 @@ public class MainActivity extends Activity {
     }
     @Override public boolean dispatchKeyEvent(KeyEvent e){
         if(opening!=null&&opening.visible()){if(e.getAction()==KeyEvent.ACTION_DOWN)opening.dismiss();return true;}
+        if(screen.equals("search")&&e.getAction()==KeyEvent.ACTION_DOWN&&getWindow().getDecorView().hasWindowFocus()){
+            if(searchScreen!=null&&searchScreen.move(getCurrentFocus(),e.getKeyCode()))return true;
+            if(searchScreen!=null&&searchScreen.hasFocusWithin(nav)&&tvFocus.move(root,getCurrentFocus(),e.getKeyCode()))return true;
+        }
         if(screen.equals("home")&&e.getAction()==KeyEvent.ACTION_DOWN&&getWindow().getDecorView().hasWindowFocus()&&tvFocus.move(root,getCurrentFocus(),e.getKeyCode()))return true;
         if(screen.equals("home")&&e.getAction()==KeyEvent.ACTION_DOWN&&e.getKeyCode()==KeyEvent.KEYCODE_MENU){View focused=getCurrentFocus();if(focused!=null&&focused.getTag() instanceof JSONObject){JSONObject item=(JSONObject)focused.getTag();if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")){toonActions(item);return true;}}}
         if(screen.equals("player")&&player!=null){
@@ -940,8 +976,8 @@ public class MainActivity extends Activity {
         dialog.setOnShowListener(ignored->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{String value=key.getText().toString().trim();if(!value.matches("[a-f0-9]{64}")){key.setError("La chiave deve contenere 64 caratteri esadecimali");return;}prefs.edit().putString("serverKey",value).apply();dialog.dismiss();refreshSourceIndex(true,null);home();}));dialog.show();
     }
 
-    @Override public void onBackPressed(){if(screen.equals("web")){if(automaticEpisode!=null){automaticEpisode=null;home();}else if(webCustomView!=null)closeWebFullscreen();else if(browser!=null&&browser.canGoBack())browser.goBack();else home();}else if(screen.equals("loading")){cancelJob();home();}else if(screen.equals("player")){if(selected!=null&&(selected.optBoolean("localBrowserSession")||selected.optString("addonId").equals("plugin.video.nikod.toonitalia")||selected.optString("addonId").equals("plugin.video.nikod.programfeed")))home();else details(selected);}else if(!screen.equals("home")){home();}else if(!history.isEmpty()){previous();}else super.onBackPressed();}
+    @Override public void onBackPressed(){if(screen.equals("search")){cancelSearch();section=searchBackSection;catalogTitle=searchBackTitle;items=searchBackItems;home();}else if(screen.equals("web")){if(automaticEpisode!=null){automaticEpisode=null;home();}else if(webCustomView!=null)closeWebFullscreen();else if(browser!=null&&browser.canGoBack())browser.goBack();else home();}else if(screen.equals("loading")){cancelJob();home();}else if(screen.equals("player")){if(selected!=null&&(selected.optBoolean("localBrowserSession")||selected.optString("addonId").equals("plugin.video.nikod.toonitalia")||selected.optString("addonId").equals("plugin.video.nikod.programfeed")))home();else details(selected);}else if(!screen.equals("home")){home();}else if(!history.isEmpty()){previous();}else super.onBackPressed();}
     @Override protected void onPause(){if(heroCarousel!=null)heroCarousel.setActive(false);savePlayback(true);super.onPause();if(player!=null)player.pause();if(browser!=null)browser.onPause();}
     @Override protected void onResume(){super.onResume();if(updates!=null)updates.onResume();if(heroCarousel!=null)heroCarousel.setActive(true);if(browser!=null)browser.onResume();}
-    @Override protected void onDestroy(){if(posterBadges!=null)posterBadges.close();if(updates!=null)updates.close();if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}savePlayback(true);alive=false;cancelJob();if(browser!=null){try{ServiceWorkerController.getInstance().setServiceWorkerClient(null);}catch(RuntimeException ignored){}browser.destroy();browser=null;}if(player!=null){player.release();player=null;}main.removeCallbacksAndMessages(null);worker.shutdown();artworkWorker.shutdownNow();artworkCache.evictAll();super.onDestroy();}
+    @Override protected void onDestroy(){if(searchScreen!=null){searchScreen.close();searchScreen=null;}if(posterBadges!=null)posterBadges.close();if(updates!=null)updates.close();if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}savePlayback(true);alive=false;cancelJob();if(browser!=null){try{ServiceWorkerController.getInstance().setServiceWorkerClient(null);}catch(RuntimeException ignored){}browser.destroy();browser=null;}if(player!=null){player.release();player=null;}main.removeCallbacksAndMessages(null);worker.shutdown();artworkWorker.shutdownNow();artworkCache.evictAll();super.onDestroy();}
 }
