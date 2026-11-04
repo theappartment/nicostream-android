@@ -39,7 +39,7 @@ final class HeroPreview {
         current.setVolume(0);current.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),false);
         current.setTrackSelectionParameters(current.getTrackSelectionParameters().buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO,true).build());current.setVideoTextureView(surface);
         current.addListener(new Player.Listener(){
-            public void onRenderedFirstFrame(){if(player!=current)return;firstFrame=true;updateCover();handler.postDelayed(()->{if(player==current)cropLetterbox();},350);handler.postDelayed(()->{if(player==current)cropLetterbox();},1200);surface.animate().alpha(1).setDuration(300).start();android.util.Log.i("NicoStreamPreview","FIRST_FRAME MUTED=true");}
+            public void onRenderedFirstFrame(){if(player!=current)return;firstFrame=true;updateCover();handler.postDelayed(()->{if(player==current)cropLetterbox();},350);handler.postDelayed(()->{if(player==current)cropLetterbox();},1200);handler.postDelayed(()->{if(player==current)cropLetterbox();},3500);handler.postDelayed(()->{if(player==current)cropLetterbox();},6500);surface.animate().alpha(1).setDuration(300).start();android.util.Log.i("NicoStreamPreview","FIRST_FRAME MUTED=true");}
             public void onVideoSizeChanged(VideoSize size){if(player!=current||size.height<=0||size.width<=0)return;videoAspect=(float)size.width*size.pixelWidthHeightRatio/size.height;surface.post(()->{if(player==current)updateCover();});}
             public void onPlaybackStateChanged(int state){if(player==current&&state==Player.STATE_ENDED)stop(false);}
             public void onPlayerError(PlaybackException error){if(player==current){android.util.Log.i("NicoStreamPreview","UNAVAILABLE code="+error.getErrorCodeName());stop(false);}}
@@ -57,11 +57,11 @@ final class HeroPreview {
         // symmetric, entirely black margins; don't treat a dark scene as a bar.
         android.graphics.Bitmap frame=surface.getBitmap(160,Math.max(32,Math.round(160f*surface.getHeight()/surface.getWidth())));if(frame==null)return;
         try{
-            int height=frame.getHeight(),limit=height/5,top=0,bottom=0;
+            int height=frame.getHeight(),limit=height/3,top=0,bottom=0;
             while(top<limit&&blackRow(frame,top))top++;
             while(bottom<limit&&blackRow(frame,height-1-bottom))bottom++;
             if(top<2||bottom<2||top>=limit||bottom>=limit||Math.abs(top-bottom)>2)return;
-            float zoom=(float)height/(height-top-bottom);if(zoom>letterboxZoom){letterboxZoom=Math.min(1.55f,zoom);updateCover();}
+            float zoom=(float)height/(height-top-bottom);android.util.Log.i("NicoStreamPreview","COVER sourceAspect="+videoAspect+" margins="+top+","+bottom+" sampleHeight="+height);if(zoom>letterboxZoom){letterboxZoom=Math.min(1.9f,zoom);updateCover();}
         }finally{frame.recycle();}
     }
     void updateCover(){
