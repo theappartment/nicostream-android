@@ -1,6 +1,6 @@
-Il carosello segue la durata dei trailer.
+Banner delle copertine più nitidi.
 
-- Il titolo successivo parte automaticamente quando finisce il trailer corrente.
-- Rimossi il cambio ogni 18 secondi e il limite di un minuto sulle anteprime.
-- L’ultimo fotogramma resta visibile fino al passaggio al video già preparato.
-- Le frecce manuali restano disponibili e le anteprime non disponibili vengono saltate.
+- Riconoscimento locale della fascia rossa Aggiunto di recente nelle locandine.
+- Testo e sfondo ridisegnati dall’app alla risoluzione dello schermo.
+- Verifica della scritta per distinguere il banner dagli elementi rossi della copertina.
+- Copertine non riconosciute mantenute nella forma originale.

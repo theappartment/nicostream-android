@@ -59,6 +59,7 @@ public class MainActivity extends Activity {
     final Handler main=new Handler(Looper.getMainLooper());
     TextView status,clock,pauseButton,sourceDomainStatus;
     ExoPlayer player;
+    PosterBadges posterBadges;
     HeroCarousel heroCarousel;
     volatile long heroEnrichmentGeneration;
     final Map<String,JSONObject> heroRecordCache=new ConcurrentHashMap<>();
@@ -88,7 +89,7 @@ public class MainActivity extends Activity {
     int dp(float n){return (int)(getResources().getDisplayMetrics().density*n+.5f);}
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
-        prefs=getSharedPreferences("nico",0);
+        prefs=getSharedPreferences("nico",0);posterBadges=new PosterBadges();
         updates=new AppUpdates(this,()->screen.equals("home")&&section.equals("Scopri")&&currentJob.isEmpty());
         if(getIntent().getBooleanExtra("import_engine_setup",false)){
             File setup=new File(getExternalFilesDir(null),"engine-setup.json");
@@ -393,11 +394,14 @@ public class MainActivity extends Activity {
         h.addView(text("IN EVIDENZA / "+item.optString("duration"),11,MINT));h.addView(title(item.optString("title"),30));
         TextView desc=text(item.optString("description"),14,WHITE);desc.setMaxLines(2);h.addView(desc);space(h,10);h.addView(button("▶ Scopri il film",()->openItem(item)),new LinearLayout.LayoutParams(-2,-2));body.addView(h);space(body,16);
     }
+    void bindArtwork(ImageView image,String url,android.graphics.Bitmap bitmap){
+        image.setImageBitmap(bitmap);if(image instanceof PosterImageView&&posterBadges!=null)posterBadges.inspect(url,bitmap,(PosterImageView)image);
+    }
     ImageView artwork(String url,int width,int height){
-        ImageView image=new ImageView(this);image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setBackground(bg(PANEL,8));image.setClipToOutline(true);image.setLayoutParams(new LinearLayout.LayoutParams(width<0?width:dp(width),dp(height)));image.setTag(url);
-        android.graphics.Bitmap cached=artworkCache.get(url);if(cached!=null){image.setImageBitmap(cached);return image;}if(!url.startsWith("https://"))return image;
+        ImageView image=new PosterImageView(this);image.setScaleType(ImageView.ScaleType.CENTER_CROP);image.setBackground(bg(PANEL,8));image.setClipToOutline(true);image.setLayoutParams(new LinearLayout.LayoutParams(width<0?width:dp(width),dp(height)));image.setTag(url);
+        android.graphics.Bitmap cached=artworkCache.get(url);if(cached!=null){bindArtwork(image,url,cached);return image;}if(!url.startsWith("https://"))return image;
         artworkWorker.execute(()->{
-            android.graphics.Bitmap ready=artworkCache.get(url);if(ready!=null){main.post(()->{if(alive&&image.isAttachedToWindow())image.setImageBitmap(ready);});return;}
+            android.graphics.Bitmap ready=artworkCache.get(url);if(ready!=null){main.post(()->{if(alive&&image.isAttachedToWindow())bindArtwork(image,url,ready);});return;}
             try{
                 HttpURLConnection connection=(HttpURLConnection)new URL(url).openConnection();connection.setConnectTimeout(7000);connection.setReadTimeout(10000);connection.setInstanceFollowRedirects(false);
                 byte[] bytes;
@@ -405,7 +409,7 @@ public class MainActivity extends Activity {
                 android.graphics.BitmapFactory.Options options=new android.graphics.BitmapFactory.Options();options.inJustDecodeBounds=true;android.graphics.BitmapFactory.decodeByteArray(bytes,0,bytes.length,options);options.inSampleSize=1;
                 while(options.outWidth/options.inSampleSize>(height>=230?1280:640)||options.outHeight/options.inSampleSize>(height>=230?1280:640))options.inSampleSize*=2;
                 options.inJustDecodeBounds=false;android.graphics.Bitmap bitmap=android.graphics.BitmapFactory.decodeByteArray(bytes,0,bytes.length,options);
-                if(bitmap!=null){artworkCache.put(url,bitmap);main.post(()->{if(alive&&url.equals(image.getTag())&&image.isAttachedToWindow())image.setImageBitmap(bitmap);});}
+                if(bitmap!=null){artworkCache.put(url,bitmap);main.post(()->{if(alive&&url.equals(image.getTag())&&image.isAttachedToWindow())bindArtwork(image,url,bitmap);});}
             }catch(Exception ignored){}
         });return image;
     }
@@ -939,5 +943,5 @@ public class MainActivity extends Activity {
     @Override public void onBackPressed(){if(screen.equals("web")){if(automaticEpisode!=null){automaticEpisode=null;home();}else if(webCustomView!=null)closeWebFullscreen();else if(browser!=null&&browser.canGoBack())browser.goBack();else home();}else if(screen.equals("loading")){cancelJob();home();}else if(screen.equals("player")){if(selected!=null&&(selected.optBoolean("localBrowserSession")||selected.optString("addonId").equals("plugin.video.nikod.toonitalia")||selected.optString("addonId").equals("plugin.video.nikod.programfeed")))home();else details(selected);}else if(!screen.equals("home")){home();}else if(!history.isEmpty()){previous();}else super.onBackPressed();}
     @Override protected void onPause(){if(heroCarousel!=null)heroCarousel.setActive(false);savePlayback(true);super.onPause();if(player!=null)player.pause();if(browser!=null)browser.onPause();}
     @Override protected void onResume(){super.onResume();if(updates!=null)updates.onResume();if(heroCarousel!=null)heroCarousel.setActive(true);if(browser!=null)browser.onResume();}
-    @Override protected void onDestroy(){if(updates!=null)updates.close();if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}savePlayback(true);alive=false;cancelJob();if(browser!=null){try{ServiceWorkerController.getInstance().setServiceWorkerClient(null);}catch(RuntimeException ignored){}browser.destroy();browser=null;}if(player!=null){player.release();player=null;}main.removeCallbacksAndMessages(null);worker.shutdown();artworkWorker.shutdownNow();artworkCache.evictAll();super.onDestroy();}
+    @Override protected void onDestroy(){if(posterBadges!=null)posterBadges.close();if(updates!=null)updates.close();if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}savePlayback(true);alive=false;cancelJob();if(browser!=null){try{ServiceWorkerController.getInstance().setServiceWorkerClient(null);}catch(RuntimeException ignored){}browser.destroy();browser=null;}if(player!=null){player.release();player=null;}main.removeCallbacksAndMessages(null);worker.shutdown();artworkWorker.shutdownNow();artworkCache.evictAll();super.onDestroy();}
 }

@@ -69,3 +69,9 @@ Home shelves and catalog grids reserve space for scaled focused cards. Vertical 
 The hero selects up to eight available previews from the published Top 10. Home metadata is supplemented by at most ten title detail lookups per activity/provider; stable IDs are checked before joining title, artwork and preview. Missing or failed previews are skipped. The first title displays artwork before its video; one paused successor is prepared in memory and promoted on the next transition. No preview playlists, tokens or cookies are saved to disk.
 
 From 0.5.1, rotation follows the actual end of each trailer while visible (without the previous 18-second rotation or 60-second playback cutoff), pauses while hero controls hold focus, and supports previous/next buttons. Leaving Home, backgrounding the app or scrolling away releases standby playback. Preview audio remains disabled and video zoom remains fixed at 150%. Main playback and history are separate.
+
+## Crisp recent-addition poster labels (0.6.0)
+
+A red/white footer detector proposes candidate poster bands; bundled on-device Latin text recognition must confirm the exact Aggiunto di recente label before changing its presentation. PosterImageView then covers the original low-resolution band and draws a native red rectangle and antialiased white text using the displayed image matrix, including center-cropped images. Uncertain results retain the original artwork.
+
+Recognition runs off the UI thread, is serialized and deduplicated per image URL, and caches both positive and negative results in memory. The Latin model is bundled for immediate use, including sideloaded TVs; poster images are not uploaded for recognition. The original bitmap is unchanged. Synthetic tests cover compressed/white-heavy bands, ordinary red artwork, aspect ratios and exact label confirmation. Original catalog artwork is not bundled in tests or the app.
