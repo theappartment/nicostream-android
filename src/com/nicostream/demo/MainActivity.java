@@ -321,7 +321,7 @@ public class MainActivity extends Activity {
         space(body,20);
     }
     void discoverHero(JSONObject item){
-        FrameLayout outer=new FrameLayout(this),stage=new FrameLayout(this);outer.setClipChildren(false);outer.addView(stage,new FrameLayout.LayoutParams(-1,-1));
+        FrameLayout outer=new FrameLayout(this),stage=new FrameLayout(this);outer.setTag("tv-focus-anchor");outer.setClipChildren(false);outer.addView(stage,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout pager=new LinearLayout(this);pager.setGravity(Gravity.CENTER_VERTICAL);TextView previous=button("‹",()->{}),next=button("›",()->{}),counter=text("",12,MUTED);previous.setContentDescription("Titolo precedente");next.setContentDescription("Titolo successivo");counter.setGravity(Gravity.CENTER);pager.addView(previous);pager.addView(counter,new LinearLayout.LayoutParams(dp(65),-2));pager.addView(next);
         FrameLayout.LayoutParams pagerParams=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.RIGHT);pagerParams.rightMargin=dp(28);pagerParams.bottomMargin=dp(12);outer.addView(pager,pagerParams);
         body.addView(outer,new LinearLayout.LayoutParams(-1,dp(440)));space(body,24);heroCarousel=new HeroCarousel(stage,this::buildHeroSlide,counter,previous,next);JSONArray candidates=HeroSelection.candidates(discoverFeed);if(candidates.length()==0)candidates.put(item);heroCarousel.update(candidates);
