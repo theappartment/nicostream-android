@@ -36,7 +36,7 @@ final class AppOpening {
         ImageView mark=new ImageView(activity);mark.setImageResource(R.drawable.app_icon);mark.setScaleType(ImageView.ScaleType.FIT_CENTER);brand.addView(mark,new LinearLayout.LayoutParams(dp(122),dp(122)));
         TextView name=new TextView(activity);name.setText("NicoFlix");name.setTextSize(42);name.setTextColor(Color.WHITE);name.setLetterSpacing(.12f);name.setTypeface(Typeface.create("sans-serif-medium",Typeface.NORMAL));name.setGravity(Gravity.CENTER);LinearLayout.LayoutParams title=new LinearLayout.LayoutParams(-2,-2);title.topMargin=dp(20);brand.addView(name,title);
         overlay.addView(brand,new FrameLayout.LayoutParams(-1,-1));host.addView(overlay,new FrameLayout.LayoutParams(-1,-1));overlay.requestFocus();
-        mark.setAlpha(0);mark.setScaleX(.7f);mark.setScaleY(.7f);
+        mark.setAlpha(0f);mark.setScaleX(.7f);mark.setScaleY(.7f);
         mark.animate().alpha(1).scaleX(1).scaleY(1).setDuration(900).setInterpolator(new DecelerateInterpolator()).start();
         name.setAlpha(0);name.setTranslationY(dp(12));name.animate().alpha(1).translationY(0).setStartDelay(550).setDuration(650).start();
         lightAnimation.start();
