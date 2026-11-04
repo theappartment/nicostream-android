@@ -36,7 +36,7 @@ final class HeroPreview {
     void play(String url,long request){
         Map<String,String> headers=Collections.singletonMap("Referer",embed);String host=Uri.parse(url).getHost();
         letterboxZoom=1f;player=new ExoPlayer.Builder(context).setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(context,()->new BrowserSessionDataSource(ua,headers,host)))).build();final ExoPlayer current=player;
-        current.setVolume(0);current.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),false);
+        current.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);current.setVolume(0);current.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),false);
         current.setTrackSelectionParameters(current.getTrackSelectionParameters().buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO,true).build());current.setVideoTextureView(surface);
         current.addListener(new Player.Listener(){
             public void onRenderedFirstFrame(){if(player!=current)return;firstFrame=true;updateCover();handler.postDelayed(()->{if(player==current)cropLetterbox();},350);handler.postDelayed(()->{if(player==current)cropLetterbox();},1200);handler.postDelayed(()->{if(player==current)cropLetterbox();},3500);handler.postDelayed(()->{if(player==current)cropLetterbox();},6500);surface.animate().alpha(1).setDuration(300).start();android.util.Log.i("NicoStreamPreview","FIRST_FRAME MUTED=true");}
