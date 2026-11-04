@@ -1,5 +1,4 @@
-Scheda serie più cinematografica.
+Scheda serie più compatta.
 
-- Trailer silenzioso nella colonna sinistra, quando disponibile, con immagine di riserva.
-- Card compatta con copertina verticale, dati e descrizione sotto il trailer.
-- Rimossa l’intestazione Episodi con conteggio e istruzioni sopra le stagioni.
+- Copertina sovrapposta al bordo inferiore del trailer.
+- Dati, descrizione breve e comandi affiancati per evitare lo scorrimento della scheda.
