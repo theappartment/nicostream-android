@@ -59,7 +59,10 @@ public class MainActivity extends Activity {
     final Handler main=new Handler(Looper.getMainLooper());
     TextView status,clock,pauseButton,sourceDomainStatus;
     ExoPlayer player;
-    HeroPreview heroPreview;
+    HeroCarousel heroCarousel;
+    volatile long heroEnrichmentGeneration;
+    final Map<String,JSONObject> heroRecordCache=new ConcurrentHashMap<>();
+    final Set<String> heroLookups=Collections.newSetFromMap(new ConcurrentHashMap<String,Boolean>());
     AppUpdates updates;
     SeekBar seek;
     volatile String currentJob="";
@@ -136,7 +139,7 @@ public class MainActivity extends Activity {
     TextView button(String label,Runnable action){TextView b=text(label,16,WHITE);b.setGravity(Gravity.CENTER);b.setPadding(dp(20),dp(13),dp(20),dp(13));b.setMinHeight(dp(46));b.setBackground(focus());b.setFocusable(true);b.setClickable(true);b.setOnClickListener(v->action.run());return b;}
     void base(){
         revealKey=KeyEvent.KEYCODE_UNKNOWN;
-        if(heroPreview!=null){heroPreview.dispose();heroPreview=null;}
+        if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}
         savePlayback(false);playingSource=null;playingStarted=false;
         automaticEpisode=null;
         if(browser!=null){try{ServiceWorkerController.getInstance().setServiceWorkerClient(null);}catch(RuntimeException ignored){}browser.stopLoading();browser.destroy();browser=null;}
@@ -249,8 +252,23 @@ public class MainActivity extends Activity {
         String origin=providerOrigin();if(sourceIndexLoading||server().isEmpty()||origin.isEmpty()||discoverLoading||(!force&&discoverFeed!=null&&discoverFeed.optJSONArray("rails")!=null&&System.currentTimeMillis()-discoverUpdated<600000))return;
         discoverLoading=true;discoverError="";final String ua=WebSettings.getDefaultUserAgent(this);
         worker.execute(()->{try{JSONObject page=scPage(origin+"/it",ua);JSONObject feed=StreamingCommunityCatalog.home(page,page.optString("_sourceOrigin",origin));if(feed.getJSONArray("rails").length()==0)throw new IOException("Nessuna raccolta disponibile");
-            main.post(()->{if(!alive)return;discoverLoading=false;if(!origin.equals(providerOrigin())){if(screen.equals("home")&&section.equals("Scopri"))loadDiscover(true);return;}discoverFeed=feed;discoverUpdated=System.currentTimeMillis();prefs.edit().putString("discoverFeed",safeMetadata(feed)).putInt("discoverVersion",1).putLong("discoverUpdated",discoverUpdated).apply();if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body){boolean browsing=body.hasFocus();if(!browsing||force){renderDiscover();if(force)nav.getChildAt(0).requestFocus();}else{TextView update=button("Nuovi titoli disponibili · Aggiorna",()->{focusItem="";home();});body.addView(update,0);}}});
+            main.post(()->{if(!alive)return;discoverLoading=false;if(!origin.equals(providerOrigin())){if(screen.equals("home")&&section.equals("Scopri"))loadDiscover(true);return;}discoverFeed=feed;discoverUpdated=System.currentTimeMillis();prefs.edit().putString("discoverFeed",safeMetadata(feed)).putInt("discoverVersion",1).putLong("discoverUpdated",discoverUpdated).apply();if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body){boolean browsing=body.hasFocus();if(!browsing||force){renderDiscover();if(force)nav.getChildAt(0).requestFocus();}else{TextView update=button("Nuovi titoli disponibili · Aggiorna",()->{focusItem="";home();});body.addView(update,0);}}enrichHero(feed);});
         }catch(Exception e){main.post(()->{if(!alive)return;discoverLoading=false;if(!origin.equals(providerOrigin())){if(screen.equals("home")&&section.equals("Scopri"))loadDiscover(true);return;}discoverError="Non riesco ad aggiornare i titoli. Puoi riprovare o usare Cerca.";if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body&&(!body.hasFocus()||force)){renderDiscover();if(force)nav.getChildAt(0).requestFocus();}});}});
+    }
+    void enrichHero(JSONObject feed){
+        final long revision=++heroEnrichmentGeneration;final String origin=providerOrigin(),ua=WebSettings.getDefaultUserAgent(this);final JSONArray titles=HeroSelection.topTen(feed);
+        worker.execute(()->{
+            for(int n=0;n<titles.length();n++){
+                if(!alive||revision!=heroEnrichmentGeneration)return;JSONObject target=titles.optJSONObject(n);if(target==null||HeroPreviewResolver.allowed(target.optString("previewURL")))continue;
+                String key=origin+":"+target.optLong("scTitleId");JSONObject ready=heroRecordCache.get(key);
+                if(ready==null&&!heroLookups.add(key))continue;
+                try{
+                    if(ready==null){JSONObject props=scPage(target.optString("url"),ua);JSONObject record=props.getJSONObject("title");if(record.optLong("id")!=target.optLong("scTitleId"))continue;ready=StreamingCommunityCatalog.titleEntry(record,props,props.optString("_sourceOrigin",origin));if(!HeroPreviewResolver.allowed(ready.optString("previewURL")))continue;heroRecordCache.put(key,ready);}
+                    final JSONObject enriched=ready;
+                    main.post(()->{if(!alive||revision!=heroEnrichmentGeneration||discoverFeed!=feed)return;try{for(java.util.Iterator<String> keys=enriched.keys();keys.hasNext();){String field=keys.next();target.put(field,enriched.get(field));}if(screen.equals("home")&&section.equals("Scopri")&&heroCarousel!=null)heroCarousel.update(HeroSelection.candidates(feed));}catch(JSONException ignored){}});
+                }catch(Exception ignored){}
+            }
+        });
     }
     void loadProgramHome(boolean force){
         if(server().isEmpty()||programHomeLoading)return;
@@ -276,7 +294,7 @@ public class MainActivity extends Activity {
         body=previousBody;
     }
     void renderDiscover(){
-        if(heroPreview!=null){heroPreview.dispose();heroPreview=null;}
+        if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}
         body.removeAllViews();if(server().isEmpty()){body.addView(title("La tua demo",32));body.addView(text("Scegli un film per provare il player.",16,MUTED));space(body,18);for(int i=0;i<items.length();i++){JSONObject item=items.optJSONObject(i);if(item!=null)body.addView(card(item));}return;}JSONObject featured=discoverFeed==null?null:discoverFeed.optJSONObject("hero");
         if(featured!=null)discoverHero(featured);
         else if(currentSeries!=null&&!currentSeries.optString("url").isEmpty())discoverHero(currentSeries);
@@ -303,6 +321,13 @@ public class MainActivity extends Activity {
         space(body,20);
     }
     void discoverHero(JSONObject item){
+        FrameLayout outer=new FrameLayout(this),stage=new FrameLayout(this);outer.setClipChildren(false);outer.addView(stage,new FrameLayout.LayoutParams(-1,-1));
+        LinearLayout pager=new LinearLayout(this);pager.setGravity(Gravity.CENTER_VERTICAL);TextView previous=button("‹",()->{}),next=button("›",()->{}),counter=text("",12,MUTED);previous.setContentDescription("Titolo precedente");next.setContentDescription("Titolo successivo");counter.setGravity(Gravity.CENTER);pager.addView(previous);pager.addView(counter,new LinearLayout.LayoutParams(dp(65),-2));pager.addView(next);
+        FrameLayout.LayoutParams pagerParams=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.RIGHT);pagerParams.rightMargin=dp(28);pagerParams.bottomMargin=dp(12);outer.addView(pager,pagerParams);
+        body.addView(outer,new LinearLayout.LayoutParams(-1,dp(440)));space(body,24);heroCarousel=new HeroCarousel(stage,this::buildHeroSlide,counter,previous,next);JSONArray candidates=HeroSelection.candidates(discoverFeed);if(candidates.length()==0)candidates.put(item);heroCarousel.update(candidates);
+    }
+    HeroCarousel.Slide buildHeroSlide(JSONObject item,boolean preload,boolean immediate){
+        HeroPreview previewPlayer=null;
         int viewport=getResources().getDisplayMetrics().widthPixels-dp(52);
         boolean compact=viewport<dp(720);int posterWidth=compact?96:112,posterHeight=posterWidth*3/2;
         FrameLayout hero=new FrameLayout(this);hero.setTag("tv-focus-anchor");hero.setClipChildren(false);hero.setClipToPadding(false);
@@ -310,7 +335,7 @@ public class MainActivity extends Activity {
         String image=item.optString("backdrop");if(image.isEmpty())image=item.optString("thumb");if(image.isEmpty())image=item.optString("art");
         backdrop.addView(artwork(image,-1,350),new FrameLayout.LayoutParams(-1,-1));
         String preview=item.optString("previewURL");if(HeroPreviewResolver.allowed(preview)){
-            TextureView trailer=new TextureView(this);trailer.setAlpha(0);trailer.setOpaque(false);trailer.setFocusable(false);trailer.setClickable(false);trailer.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);backdrop.addView(trailer,new FrameLayout.LayoutParams(-1,-1));heroPreview=new HeroPreview(this,backdrop,trailer,worker,preview,item.optString("previewReferer",providerOrigin()+"/it"),WebSettings.getDefaultUserAgent(this));
+            TextureView trailer=new TextureView(this);trailer.setAlpha(0);trailer.setOpaque(false);trailer.setFocusable(false);trailer.setClickable(false);trailer.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);backdrop.addView(trailer,new FrameLayout.LayoutParams(-1,-1));previewPlayer=new HeroPreview(this,backdrop,trailer,worker,preview,item.optString("previewReferer",providerOrigin()+"/it"),WebSettings.getDefaultUserAgent(this),preload,immediate);
         }
         View shade=new View(this);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,new int[]{Color.argb(170,7,11,17),Color.argb(60,7,11,17),Color.TRANSPARENT}));backdrop.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         View bottomShade=new View(this);bottomShade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{Color.TRANSPARENT,BG}));backdrop.addView(bottomShade,new FrameLayout.LayoutParams(-1,dp(85),Gravity.BOTTOM));
@@ -321,13 +346,14 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams coverParams=new LinearLayout.LayoutParams(dp(posterWidth+4),dp(posterHeight+4));coverParams.rightMargin=dp(compact?16:22);foreground.addView(cover,coverParams);
         }
         LinearLayout copy=col();copy.setGravity(Gravity.CENTER_VERTICAL);
-        TextView eyebrow=text("IN EVIDENZA",10,MINT);eyebrow.setLetterSpacing(.16f);copy.addView(eyebrow);space(copy,8);
+        String heroLabel="IN EVIDENZA";JSONArray ranking=HeroSelection.topTen(discoverFeed);for(int rank=0;rank<ranking.length();rank++)if(ranking.optJSONObject(rank).optLong("scTitleId")==item.optLong("scTitleId")){heroLabel="TOP 10 · #"+(rank+1);break;}
+        TextView eyebrow=text(heroLabel,10,MINT);eyebrow.setLetterSpacing(.16f);copy.addView(eyebrow);space(copy,8);
         TextView name=title(item.optString("title"),compact?26:30);name.setShadowLayer(dp(4),0,dp(2),Color.BLACK);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(name);space(copy,8);
         TextView metadata=text(item.optString("tag")+(item.optString("year").isEmpty()?"":"  ·  "+item.optString("year")),11,MUTED);metadata.setLetterSpacing(.06f);copy.addView(metadata);space(copy,8);
         TextView plot=text(item.optString("description"),12,WHITE);plot.setShadowLayer(dp(3),0,dp(1),Color.BLACK);plot.setMaxLines(2);plot.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(plot);space(copy,12);
         LinearLayout actions=new LinearLayout(this);TextView open=button("▶ Apri titolo",()->openItem(item));actions.addView(open);TextView favorite=button(isFavorite(item)?"✓ Nella mia lista":"＋ La mia lista",()->{toggleFavorite(item);home();});LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-2,-2);fp.leftMargin=dp(8);actions.addView(favorite,fp);for(TextView action:new TextView[]{open,favorite}){action.setTextSize(13);action.setMinHeight(dp(40));action.setPadding(dp(14),dp(10),dp(14),dp(10));}copy.addView(actions);
         int copyWidth=Math.min(dp(compact?285:340),viewport-dp(60+(poster.startsWith("https://")?posterWidth+4+(compact?16:22):0)));
-        foreground.addView(copy,new LinearLayout.LayoutParams(Math.max(dp(220),copyWidth),-2));hero.addView(foreground,new FrameLayout.LayoutParams(-1,-1));body.addView(hero,new LinearLayout.LayoutParams(-1,dp(440)));space(body,24);
+        foreground.addView(copy,new LinearLayout.LayoutParams(Math.max(dp(220),copyWidth),-2));hero.addView(foreground,new FrameLayout.LayoutParams(-1,-1));return new HeroCarousel.Slide(hero,previewPlayer);
     }
     HorizontalScrollView tvShelf(){
         HorizontalScrollView shelf=new HorizontalScrollView(this);shelf.setClipChildren(false);shelf.setClipToPadding(false);shelf.setPadding(dp(10),dp(12),dp(10),dp(12));shelf.setHorizontalScrollBarEnabled(false);return shelf;
@@ -911,7 +937,7 @@ public class MainActivity extends Activity {
     }
 
     @Override public void onBackPressed(){if(screen.equals("web")){if(automaticEpisode!=null){automaticEpisode=null;home();}else if(webCustomView!=null)closeWebFullscreen();else if(browser!=null&&browser.canGoBack())browser.goBack();else home();}else if(screen.equals("loading")){cancelJob();home();}else if(screen.equals("player")){if(selected!=null&&(selected.optBoolean("localBrowserSession")||selected.optString("addonId").equals("plugin.video.nikod.toonitalia")||selected.optString("addonId").equals("plugin.video.nikod.programfeed")))home();else details(selected);}else if(!screen.equals("home")){home();}else if(!history.isEmpty()){previous();}else super.onBackPressed();}
-    @Override protected void onPause(){if(heroPreview!=null)heroPreview.setActive(false);savePlayback(true);super.onPause();if(player!=null)player.pause();if(browser!=null)browser.onPause();}
-    @Override protected void onResume(){super.onResume();if(updates!=null)updates.onResume();if(heroPreview!=null)heroPreview.setActive(true);if(browser!=null)browser.onResume();}
-    @Override protected void onDestroy(){if(updates!=null)updates.close();if(heroPreview!=null){heroPreview.dispose();heroPreview=null;}savePlayback(true);alive=false;cancelJob();if(browser!=null){try{ServiceWorkerController.getInstance().setServiceWorkerClient(null);}catch(RuntimeException ignored){}browser.destroy();browser=null;}if(player!=null){player.release();player=null;}main.removeCallbacksAndMessages(null);worker.shutdown();artworkWorker.shutdownNow();artworkCache.evictAll();super.onDestroy();}
+    @Override protected void onPause(){if(heroCarousel!=null)heroCarousel.setActive(false);savePlayback(true);super.onPause();if(player!=null)player.pause();if(browser!=null)browser.onPause();}
+    @Override protected void onResume(){super.onResume();if(updates!=null)updates.onResume();if(heroCarousel!=null)heroCarousel.setActive(true);if(browser!=null)browser.onResume();}
+    @Override protected void onDestroy(){if(updates!=null)updates.close();if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}savePlayback(true);alive=false;cancelJob();if(browser!=null){try{ServiceWorkerController.getInstance().setServiceWorkerClient(null);}catch(RuntimeException ignored){}browser.destroy();browser=null;}if(player!=null){player.release();player=null;}main.removeCallbacksAndMessages(null);worker.shutdown();artworkWorker.shutdownNow();artworkCache.evictAll();super.onDestroy();}
 }

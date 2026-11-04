@@ -63,3 +63,9 @@ Questo repository contiene il client Android. Il motore addon e l’app iOS sono
 Startup shows a short, skippable NicoStream logo animation over the real Home. It respects disabled system animations. Startup no longer launches a Kodi/Stream4me root job; provider metadata and Program Feed load independently, and explicit addon browsing still uses the engine normally. The access-key screen remains available on unconfigured devices.
 
 Home shelves and catalog grids reserve space for scaled focused cards. Vertical focus navigation centers the active item within the content viewport, including the final row. Player controls keep their existing navigation.
+
+## Top 10 hero carousel (0.5.0)
+
+The hero selects up to eight available previews from the published Top 10. Home metadata is supplemented by at most ten title detail lookups per activity/provider; stable IDs are checked before joining title, artwork and preview. Missing or failed previews are skipped. The first title displays artwork before its video; one paused successor is prepared in memory and promoted on the next transition. No preview playlists, tokens or cookies are saved to disk.
+
+Rotation runs every 18 seconds while visible, pauses while hero controls hold focus, and supports previous/next buttons. Leaving Home, backgrounding the app or scrolling away releases standby playback. Preview audio remains disabled and video zoom remains fixed at 150%. Main playback and history are separate.

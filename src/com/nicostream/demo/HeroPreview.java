@@ -18,11 +18,13 @@ final class HeroPreview {
     final Context context;final View hero;final TextureView surface;final ExecutorService executor;final String embed,referer,ua;
     final Handler handler=new Handler(Looper.getMainLooper());
     float videoAspect;
+    boolean preload,immediate,failed,ended,ready;
     ExoPlayer player;boolean active=true,disposed=false,attempted=false,scheduled=false,firstFrame=false,progressLogged=false;long generation=0;
-    HeroPreview(Context context,View hero,TextureView surface,ExecutorService executor,String embed,String referer,String ua){this.context=context;this.hero=hero;this.surface=surface;this.executor=executor;this.embed=embed;this.referer=referer;this.ua=ua;surface.addOnLayoutChangeListener((v,l,t,r,b,oldL,oldT,oldR,oldB)->updateCover());handler.post(monitor);}
+    HeroPreview(Context context,View hero,TextureView surface,ExecutorService executor,String embed,String referer,String ua,boolean preload,boolean immediate){this.context=context;this.hero=hero;this.surface=surface;this.executor=executor;this.embed=embed;this.referer=referer;this.ua=ua;this.preload=preload;this.immediate=immediate;surface.addOnLayoutChangeListener((v,l,t,r,b,oldL,oldT,oldR,oldB)->updateCover());handler.post(monitor);}
+    void promote(){preload=false;immediate=true;if(player!=null){if(firstFrame)surface.setAlpha(1);player.play();}android.util.Log.i("NicoStreamPreview","PROMOTED prepared="+ready);}
     final Runnable monitor=new Runnable(){public void run(){
-        if(disposed)return;Rect visible=new Rect();boolean onScreen=active&&hero.isAttachedToWindow()&&hero.getGlobalVisibleRect(visible)&&visible.height()>0;
-        if(!onScreen){if(attempted||scheduled)stop(true);}else if(!attempted&&!scheduled){scheduled=true;final long request=generation;handler.postDelayed(()->{if(disposed||request!=generation||!active)return;scheduled=false;attempted=true;resolve(request);},3000);}
+        if(disposed)return;Rect visible=new Rect();boolean onScreen=active&&hero.isAttachedToWindow()&&(preload||hero.getGlobalVisibleRect(visible)&&visible.height()>0);
+        if(!onScreen){if(attempted||scheduled)stop(true);}else if(!attempted&&!scheduled){scheduled=true;final long request=generation;handler.postDelayed(()->{if(disposed||request!=generation||!active)return;scheduled=false;attempted=true;failed=false;ended=false;resolve(request);},immediate||preload?0:1200);}
         if(player!=null&&firstFrame&&player.isPlaying()&&player.getCurrentPosition()>1500&&!progressLogged){progressLogged=true;android.util.Log.i("NicoStreamPreview","PROGRESS_MS="+player.getCurrentPosition()+" MUTED="+(player.getVolume()==0));}
         handler.postDelayed(this,400);
     }};
@@ -31,22 +33,22 @@ final class HeroPreview {
             BrowserSessionDataSource data=new BrowserSessionDataSource(ua,Collections.singletonMap("Referer",referer),Uri.parse(embed).getHost());String html;
             try{data.open(new DataSpec(Uri.parse(embed)));ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] b=new byte[8192];int n;while((n=data.read(b,0,b.length))!=-1){out.write(b,0,n);if(out.size()>2097152)throw new IOException("Anteprima troppo grande");}html=out.toString("UTF-8");}finally{data.close();}
             String playlist=HeroPreviewResolver.playlist(html,embed);handler.post(()->{if(!disposed&&active&&generation==request)play(playlist,request);});
-        }catch(Exception e){handler.post(()->{if(!disposed&&generation==request){android.util.Log.i("NicoStreamPreview","UNAVAILABLE");stop(false);}});}});
+        }catch(Exception e){handler.post(()->{if(!disposed&&generation==request){android.util.Log.i("NicoStreamPreview","UNAVAILABLE");failed=true;stop(false);}});}});
     }
     void play(String url,long request){
         Map<String,String> headers=Collections.singletonMap("Referer",embed);String host=Uri.parse(url).getHost();
         player=new ExoPlayer.Builder(context).setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(context,()->new BrowserSessionDataSource(ua,headers,host)))).build();final ExoPlayer current=player;
         current.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);current.setVolume(0);current.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),false);
-        current.setTrackSelectionParameters(current.getTrackSelectionParameters().buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO,true).build());current.setVideoTextureView(surface);
+        current.setTrackSelectionParameters(current.getTrackSelectionParameters().buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO,true).setMaxVideoSize(1280,720).build());current.setVideoTextureView(surface);
         current.addListener(new Player.Listener(){
-            public void onRenderedFirstFrame(){if(player!=current)return;firstFrame=true;updateCover();surface.animate().alpha(1).setDuration(300).start();android.util.Log.i("NicoStreamPreview","FIRST_FRAME MUTED=true");}
+            public void onRenderedFirstFrame(){if(player!=current)return;firstFrame=true;updateCover();surface.animate().alpha(1).setDuration(immediate?0:250).start();android.util.Log.i("NicoStreamPreview","FIRST_FRAME MUTED=true");}
             public void onVideoSizeChanged(VideoSize size){if(player!=current||size.height<=0||size.width<=0)return;videoAspect=(float)size.width*size.pixelWidthHeightRatio/size.height;surface.post(()->{if(player==current)updateCover();});}
-            public void onPlaybackStateChanged(int state){if(player==current&&state==Player.STATE_ENDED)stop(false);}
-            public void onPlayerError(PlaybackException error){if(player==current){android.util.Log.i("NicoStreamPreview","UNAVAILABLE code="+error.getErrorCodeName());stop(false);}}
+            public void onPlaybackStateChanged(int state){if(player==current&&state==Player.STATE_READY){ready=true;android.util.Log.i("NicoStreamPreview","READY preload="+preload);}if(player==current&&state==Player.STATE_ENDED){ended=true;stop(false);}}
+            public void onPlayerError(PlaybackException error){if(player==current){android.util.Log.i("NicoStreamPreview","UNAVAILABLE code="+error.getErrorCodeName());failed=true;stop(false);}}
         });
-        current.setMediaItem(new MediaItem.Builder().setUri(url).setMimeType(MimeTypes.APPLICATION_M3U8).build());current.prepare();current.play();
-        handler.postDelayed(()->{if(player==current&&!firstFrame)stop(false);},15000);
-        handler.postDelayed(()->{if(player==current)stop(false);},60000);
+        current.setMediaItem(new MediaItem.Builder().setUri(url).setMimeType(MimeTypes.APPLICATION_M3U8).build());current.prepare();if(!preload)current.play();
+        handler.postDelayed(()->{if(player==current&&!firstFrame&&(!preload||!ready)){failed=true;stop(false);}},15000);
+        handler.postDelayed(()->{if(player==current&&!preload){ended=true;stop(false);}},60000);
     }
     void updateCover(){
         if(videoAspect<=0||!(surface.getParent() instanceof android.view.View))return;
@@ -61,7 +63,7 @@ final class HeroPreview {
         android.view.ViewGroup.LayoutParams existing=surface.getLayoutParams();
         if(existing.width!=targetWidth||existing.height!=targetHeight){surface.setTransform(new Matrix());surface.setLayoutParams(new android.widget.FrameLayout.LayoutParams(targetWidth,targetHeight,android.view.Gravity.CENTER));}
     }
-    void stop(boolean reset){generation++;scheduled=false;firstFrame=false;progressLogged=false;surface.animate().cancel();surface.setAlpha(0);if(player!=null){ExoPlayer previous=player;player=null;previous.release();android.util.Log.i("NicoStreamPreview","STOPPED");}if(reset)attempted=false;}
-    void setActive(boolean value){active=value;if(!value)stop(true);}
+    void stop(boolean reset){generation++;scheduled=false;firstFrame=false;ready=false;progressLogged=false;surface.animate().cancel();surface.setAlpha(0);if(player!=null){ExoPlayer previous=player;player=null;previous.release();android.util.Log.i("NicoStreamPreview","STOPPED");}if(reset)attempted=false;}
+    void setActive(boolean value){if(active==value)return;active=value;if(!value)stop(true);}
     void dispose(){disposed=true;stop(false);handler.removeCallbacksAndMessages(null);}
 }

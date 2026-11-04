@@ -1,7 +1,8 @@
-Hero più essenziale, con più spazio al video.
+La Top 10 entra nella hero con più trailer.
 
-- Copertina verticale ridotta di circa un quarto.
-- Zona testo più stretta, titolo e pulsanti più compatti.
-- Descrizione su due righe, mantenendo video a tutta larghezza e copertina sfalsata.
-- Copertina e testo abbassati insieme, per lasciare più libera la parte alta del video.
-- Zoom fisso al 150% sul trailer della hero per ridurre le bande nere incorporate nel video.
+- Carosello di titoli della Top 10 con anteprima disponibile.
+- Il primo titolo mostra la copertina mentre carica il video.
+- Il trailer successivo viene preparato in anticipo per partire al cambio.
+- Frecce precedente/successivo e cambio automatico ogni 18 secondi.
+- Il cambio automatico si ferma mentre usi i comandi della hero; i video restano muti.
+- Le anteprime non disponibili vengono saltate.
