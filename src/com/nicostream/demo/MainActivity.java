@@ -350,7 +350,7 @@ public class MainActivity extends Activity {
         FrameLayout outer=new FrameLayout(this),stage=new FrameLayout(this);outer.setTag("tv-focus-anchor");outer.setClipChildren(false);outer.addView(stage,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout pager=new LinearLayout(this);pager.setGravity(Gravity.CENTER_VERTICAL);ImageButton previous=carouselArrow(false),next=carouselArrow(true);TextView counter=text("",11,MUTED);previous.setContentDescription("Titolo precedente");next.setContentDescription("Titolo successivo");counter.setGravity(Gravity.CENTER);counter.setLetterSpacing(.04f);counter.setAlpha(.8f);pager.addView(previous,new LinearLayout.LayoutParams(dp(44),dp(44)));pager.addView(counter,new LinearLayout.LayoutParams(dp(44),-2));pager.addView(next,new LinearLayout.LayoutParams(dp(44),dp(44)));
         ImageButton sound=carouselArrow(true);sound.setImageResource(homeTrailerAudio?R.drawable.ic_audio_on:R.drawable.ic_audio_off);sound.setContentDescription(homeTrailerAudio?"Disattiva audio trailer":"Attiva audio trailer");sound.setOnClickListener(v->{homeTrailerAudio=!homeTrailerAudio;sound.setImageResource(homeTrailerAudio?R.drawable.ic_audio_on:R.drawable.ic_audio_off);sound.setContentDescription(homeTrailerAudio?"Disattiva audio trailer":"Attiva audio trailer");if(heroCarousel!=null)heroCarousel.setAudioEnabled(homeTrailerAudio);});LinearLayout.LayoutParams soundParams=new LinearLayout.LayoutParams(dp(44),dp(44));soundParams.leftMargin=dp(14);pager.addView(sound,soundParams);
-        FrameLayout.LayoutParams pagerParams=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.RIGHT);pagerParams.rightMargin=dp(28);pagerParams.bottomMargin=dp(12);outer.addView(pager,pagerParams);
+        FrameLayout.LayoutParams pagerParams=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.RIGHT);pagerParams.rightMargin=dp(28);pagerParams.bottomMargin=dp(12);outer.addView(pager,pagerParams);tvFocus.secondary(pager);
         body.addView(outer,new LinearLayout.LayoutParams(-1,dp(440)));space(body,24);heroCarousel=new HeroCarousel(stage,this::buildHeroSlide,counter,previous,next);JSONArray candidates=HeroSelection.candidates(discoverFeed);if(candidates.length()==0)candidates.put(item);heroCarousel.setAudioEnabled(homeTrailerAudio);heroCarousel.update(candidates);
     }
     HeroCarousel.Slide buildHeroSlide(JSONObject item,boolean preload,boolean immediate){
@@ -995,23 +995,7 @@ public class MainActivity extends Activity {
         if(webCustomCallback!=null){webCustomCallback.onCustomViewHidden();webCustomCallback=null;}
         if(root!=null&&root.getChildCount()>0)root.getChildAt(0).setVisibility(View.VISIBLE);
     }
-    void settings(){
-        screen="settings";base();addNavigation("Impostazioni");ScrollView scroll=new ScrollView(this);LinearLayout content=col();scroll.addView(content);root.addView(scroll);
-        content.addView(title("Contenuti e home",26));
-        content.addView(button("Catalogo e addon",this::showAddons));space(content,10);
-        content.addView(button("Aggiorna la home",()->{section="Scopri";home();refreshSourceIndex(true,()->loadDiscover(true));loadProgramHome(true);}));space(content,24);
-        content.addView(title("Aggiornamenti",26));content.addView(text("Versione "+BuildConfig.VERSION_NAME,15,MUTED));
-        content.addView(button("Controlla aggiornamenti",()->updates.check(true)),new LinearLayout.LayoutParams(-2,-2));content.addView(text("Le nuove versioni arrivano da GitHub. Il controllo automatico avviene una volta al giorno.",13,MUTED));space(content,24);
-        content.addView(title("Domini delle sorgenti",24));content.addView(text("L’indice Stream4me viene aggiornato automaticamente. Se non è disponibile, viene mantenuta l’ultima copia valida.",14,MUTED));
-        sourceDomainStatus=text("StreamingCommunity: "+(providerOrigin().isEmpty()?"verifica in corso":Uri.parse(providerOrigin()).getHost())+(sourceIndexWarning?" · ultima copia valida":""),14,MINT);content.addView(sourceDomainStatus);space(content,8);
-        content.addView(button("Aggiorna domini sorgenti",()->refreshSourceIndex(true,()->Toast.makeText(this,sourceIndexWarning?"Uso l’ultima copia valida delle sorgenti":"Domini delle sorgenti aggiornati",Toast.LENGTH_LONG).show())));space(content,24);
-        content.addView(title("Connessione a NicoFlix",28));content.addView(text("Il server è già configurato. La connessione parte automaticamente all’apertura dell’app.",16,MUTED));space(content,12);
-        content.addView(text(EngineAccess.SERVER,16,MINT));space(content,12);
-        boolean authorized=!prefs.getString("serverKey","").isEmpty();
-        content.addView(text(authorized?"Accesso salvato su questo dispositivo.":"Autorizza questo dispositivo una sola volta con la tua chiave di accesso.",15,MUTED));space(content,12);
-        content.addView(button(authorized?"Modifica chiave di accesso":"Autorizza dispositivo",this::editEngineAccess));space(content,12);
-        content.addView(button("‹ Torna alla home",()->{section="Scopri";home();}));
-    }
+    void settings(){screen="settings";base();addNavigation("Impostazioni");root.addView(new SettingsScreen(this).view,new LinearLayout.LayoutParams(-1,0,1));}
     void editEngineAccess(){
         EditText key=new EditText(this);key.setSingleLine(true);key.setInputType(129);key.setSaveEnabled(false);key.setHint("Chiave privata NicoFlix");key.setText(prefs.getString("serverKey",""));
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Accesso al dispositivo").setView(key).setPositiveButton("Salva",null).setNegativeButton("Annulla",null).create();

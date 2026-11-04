@@ -1,6 +1,6 @@
-Header e audio della home.
+Impostazioni e navigazione TV.
 
-- Cerca, Home, Preferiti e Impostazioni con icone sottili.
-- Catalogo e addon nelle Impostazioni riordinate.
-- Pulsante audio nella hero: la scelta si mantiene passando al trailer successivo.
-- Le anteprime si fermano scendendo sotto la hero o cambiando pagina.
+- Impostazioni a categorie, con opzioni a destra in stile Android TV.
+- Frecce e audio della hero raggiungibili con destra; giù passa ai contenuti.
+- Colonna trailer della serie fissa e non selezionabile.
+- Riprendi e La mia lista allineati al pulsante Indietro sopra le stagioni.
