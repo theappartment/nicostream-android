@@ -17,7 +17,7 @@ import java.util.concurrent.ExecutorService;
 final class HeroPreview {
     final Context context;final View hero;final TextureView surface;final ExecutorService executor;final String embed,referer,ua;
     final Handler handler=new Handler(Looper.getMainLooper());
-    float videoAspect,letterboxZoom=1f;
+    float videoAspect;
     ExoPlayer player;boolean active=true,disposed=false,attempted=false,scheduled=false,firstFrame=false,progressLogged=false;long generation=0;
     HeroPreview(Context context,View hero,TextureView surface,ExecutorService executor,String embed,String referer,String ua){this.context=context;this.hero=hero;this.surface=surface;this.executor=executor;this.embed=embed;this.referer=referer;this.ua=ua;surface.addOnLayoutChangeListener((v,l,t,r,b,oldL,oldT,oldR,oldB)->updateCover());handler.post(monitor);}
     final Runnable monitor=new Runnable(){public void run(){
@@ -35,11 +35,11 @@ final class HeroPreview {
     }
     void play(String url,long request){
         Map<String,String> headers=Collections.singletonMap("Referer",embed);String host=Uri.parse(url).getHost();
-        letterboxZoom=1f;player=new ExoPlayer.Builder(context).setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(context,()->new BrowserSessionDataSource(ua,headers,host)))).build();final ExoPlayer current=player;
+        player=new ExoPlayer.Builder(context).setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(context,()->new BrowserSessionDataSource(ua,headers,host)))).build();final ExoPlayer current=player;
         current.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);current.setVolume(0);current.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),false);
         current.setTrackSelectionParameters(current.getTrackSelectionParameters().buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO,true).build());current.setVideoTextureView(surface);
         current.addListener(new Player.Listener(){
-            public void onRenderedFirstFrame(){if(player!=current)return;firstFrame=true;updateCover();handler.postDelayed(()->{if(player==current)cropLetterbox();},350);handler.postDelayed(()->{if(player==current)cropLetterbox();},1200);handler.postDelayed(()->{if(player==current)cropLetterbox();},3500);handler.postDelayed(()->{if(player==current)cropLetterbox();},6500);surface.animate().alpha(1).setDuration(300).start();android.util.Log.i("NicoStreamPreview","FIRST_FRAME MUTED=true");}
+            public void onRenderedFirstFrame(){if(player!=current)return;firstFrame=true;updateCover();surface.animate().alpha(1).setDuration(300).start();android.util.Log.i("NicoStreamPreview","FIRST_FRAME MUTED=true");}
             public void onVideoSizeChanged(VideoSize size){if(player!=current||size.height<=0||size.width<=0)return;videoAspect=(float)size.width*size.pixelWidthHeightRatio/size.height;surface.post(()->{if(player==current)updateCover();});}
             public void onPlaybackStateChanged(int state){if(player==current&&state==Player.STATE_ENDED)stop(false);}
             public void onPlayerError(PlaybackException error){if(player==current){android.util.Log.i("NicoStreamPreview","UNAVAILABLE code="+error.getErrorCodeName());stop(false);}}
@@ -48,29 +48,15 @@ final class HeroPreview {
         handler.postDelayed(()->{if(player==current&&!firstFrame)stop(false);},15000);
         handler.postDelayed(()->{if(player==current)stop(false);},60000);
     }
-    boolean blackRow(android.graphics.Bitmap frame,int y){
-        for(int x=0;x<frame.getWidth();x++){int color=frame.getPixel(x,y);if(android.graphics.Color.red(color)>14||android.graphics.Color.green(color)>14||android.graphics.Color.blue(color)>14)return false;}return true;
-    }
-    void cropLetterbox(){
-        if(disposed||!firstFrame||surface.getWidth()==0||surface.getHeight()==0)return;
-        // Some trailers encode cinema bars into the picture itself. Detect only
-        // symmetric, entirely black margins; don't treat a dark scene as a bar.
-        android.graphics.Bitmap frame=surface.getBitmap(160,Math.max(32,Math.round(160f*surface.getHeight()/surface.getWidth())));if(frame==null)return;
-        try{
-            int height=frame.getHeight(),limit=height/3,top=0,bottom=0;
-            while(top<limit&&blackRow(frame,top))top++;
-            while(bottom<limit&&blackRow(frame,height-1-bottom))bottom++;
-            if(top<2||bottom<2||top>=limit||bottom>=limit||Math.abs(top-bottom)>2)return;
-            android.view.View viewport=(android.view.View)surface.getParent();float baseHeight=Math.max(viewport.getHeight(),viewport.getWidth()/videoAspect);float activeFraction=(float)(height-top-bottom)/height;float zoom=viewport.getHeight()/(baseHeight*activeFraction);if(zoom>letterboxZoom){letterboxZoom=Math.min(1.9f,zoom);updateCover();}
-        }finally{frame.recycle();}
-    }
     void updateCover(){
         if(videoAspect<=0||!(surface.getParent() instanceof android.view.View))return;
         android.view.View viewport=(android.view.View)surface.getParent();if(viewport.getWidth()<=0||viewport.getHeight()<=0)return;
         // Give the video its natural aspect ratio, then physically enlarge and
         // center it inside the clipped frame. This avoids decoder/texture scaling
         // introducing bars when the hero is much wider than the source video.
-        float height=Math.max(viewport.getHeight(),viewport.getWidth()/videoAspect)*letterboxZoom;
+        float height=Math.max(viewport.getHeight(),viewport.getWidth()/videoAspect);
+        // Fixed 150% zoom requested for previews with encoded cinema bars.
+        surface.setScaleX(1.5f);surface.setScaleY(1.5f);
         int targetWidth=(int)Math.ceil(height*videoAspect),targetHeight=(int)Math.ceil(height);
         android.view.ViewGroup.LayoutParams existing=surface.getLayoutParams();
         if(existing.width!=targetWidth||existing.height!=targetHeight){surface.setTransform(new Matrix());surface.setLayoutParams(new android.widget.FrameLayout.LayoutParams(targetWidth,targetHeight,android.view.Gravity.CENTER));}

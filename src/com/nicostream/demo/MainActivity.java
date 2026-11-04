@@ -314,7 +314,7 @@ public class MainActivity extends Activity {
         }
         View shade=new View(this);shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,new int[]{Color.argb(170,7,11,17),Color.argb(60,7,11,17),Color.TRANSPARENT}));backdrop.addView(shade,new FrameLayout.LayoutParams(-1,-1));
         View bottomShade=new View(this);bottomShade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{Color.TRANSPARENT,BG}));backdrop.addView(bottomShade,new FrameLayout.LayoutParams(-1,dp(85),Gravity.BOTTOM));
-        LinearLayout foreground=new LinearLayout(this);foreground.setGravity(Gravity.CENTER_VERTICAL);foreground.setPadding(dp(30),dp(120),dp(30),dp(24));foreground.setClipChildren(false);foreground.setClipToPadding(false);
+        LinearLayout foreground=new LinearLayout(this);foreground.setGravity(Gravity.CENTER_VERTICAL);foreground.setPadding(dp(30),dp(120),dp(30),dp(24));foreground.setTranslationY(dp(30));foreground.setClipChildren(false);foreground.setClipToPadding(false);
         String poster=item.optString("art");if(poster.startsWith("https://")){
             FrameLayout cover=new FrameLayout(this);GradientDrawable border=bg(Color.rgb(35,43,51),10);border.setStroke(dp(1),Color.argb(70,255,255,255));cover.setBackground(border);cover.setPadding(dp(2),dp(2),dp(2),dp(2));cover.setElevation(dp(10));cover.setTranslationY(dp(26));cover.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
             ImageView artwork=artwork(poster,posterWidth,posterHeight);artwork.setBackground(bg(PANEL,8));cover.addView(artwork,new FrameLayout.LayoutParams(-1,-1));
