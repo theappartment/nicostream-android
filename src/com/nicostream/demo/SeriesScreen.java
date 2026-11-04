@@ -49,7 +49,7 @@ final class SeriesScreen {
         if(media.optLong("scTitleId")<=0||media.optString("url").isEmpty())return;
         app.worker.execute(()->{try{JSONObject props=app.scPage(media.optString("url"),android.webkit.WebSettings.getDefaultUserAgent(app));JSONObject record=props.getJSONObject("title");if(record.optLong("id")!=media.optLong("scTitleId"))return;JSONObject ready=StreamingCommunityCatalog.titleEntry(record,props,props.optString("_sourceOrigin",app.providerOrigin()));app.main.post(()->{if(!closed&&app.seriesScreen==this)startPreview(ready);});}catch(Exception ignored){}});
     }
-    void startPreview(JSONObject media){if(closed||!HeroPreviewResolver.allowed(media.optString("previewURL")))return;preview=new HeroPreview(app,trailerFrame,trailerSurface,app.worker,media.optString("previewURL"),media.optString("previewReferer",app.providerOrigin()+"/it"),android.webkit.WebSettings.getDefaultUserAgent(app),false,false);}
+    void startPreview(JSONObject media){if(closed||!HeroPreviewResolver.allowed(media.optString("previewURL")))return;preview=new HeroPreview(app,trailerFrame,trailerSurface,app.worker,media.optString("previewURL"),media.optString("previewReferer",app.providerOrigin()+"/it"),android.webkit.WebSettings.getDefaultUserAgent(app),false,false,true);}
     void setActive(boolean active){if(preview!=null)preview.setActive(active);}
     void close(){closed=true;if(preview!=null){preview.dispose();preview=null;}}
     TextView control(String label,Runnable action){TextView button=app.button(label,action);button.setTextSize(11);button.setPadding(app.dp(12),app.dp(10),app.dp(12),app.dp(10));leftControls.add(button);return button;}

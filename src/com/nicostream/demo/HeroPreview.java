@@ -13,14 +13,16 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.ExecutorService;
 
-/** Silent, disposable native background video. Separate from the main player and its history. */
+/** Disposable native preview; Home stays silent, series detail can opt into audio. */
 final class HeroPreview {
     final Context context;final View hero;final TextureView surface;final ExecutorService executor;final String embed,referer,ua;
     final Handler handler=new Handler(Looper.getMainLooper());
+    final boolean audioEnabled;
     float videoAspect;
     boolean preload,immediate,failed,ended,ready;
     ExoPlayer player;boolean active=true,disposed=false,attempted=false,scheduled=false,firstFrame=false,progressLogged=false;long generation=0;
-    HeroPreview(Context context,View hero,TextureView surface,ExecutorService executor,String embed,String referer,String ua,boolean preload,boolean immediate){this.context=context;this.hero=hero;this.surface=surface;this.executor=executor;this.embed=embed;this.referer=referer;this.ua=ua;this.preload=preload;this.immediate=immediate;surface.addOnLayoutChangeListener((v,l,t,r,b,oldL,oldT,oldR,oldB)->updateCover());handler.post(monitor);}
+    HeroPreview(Context context,View hero,TextureView surface,ExecutorService executor,String embed,String referer,String ua,boolean preload,boolean immediate){this(context,hero,surface,executor,embed,referer,ua,preload,immediate,false);}
+    HeroPreview(Context context,View hero,TextureView surface,ExecutorService executor,String embed,String referer,String ua,boolean preload,boolean immediate,boolean audioEnabled){this.audioEnabled=audioEnabled;this.context=context;this.hero=hero;this.surface=surface;this.executor=executor;this.embed=embed;this.referer=referer;this.ua=ua;this.preload=preload;this.immediate=immediate;surface.addOnLayoutChangeListener((v,l,t,r,b,oldL,oldT,oldR,oldB)->updateCover());handler.post(monitor);}
     void promote(){preload=false;immediate=true;if(player!=null){if(firstFrame)surface.setAlpha(1);player.play();}android.util.Log.i("NicoStreamPreview","PROMOTED prepared="+ready);}
     final Runnable monitor=new Runnable(){public void run(){
         if(disposed)return;Rect visible=new Rect();boolean onScreen=active&&hero.isAttachedToWindow()&&(preload||hero.getGlobalVisibleRect(visible)&&visible.height()>0);
@@ -38,10 +40,10 @@ final class HeroPreview {
     void play(String url,long request){
         Map<String,String> headers=Collections.singletonMap("Referer",embed);String host=Uri.parse(url).getHost();
         player=new ExoPlayer.Builder(context).setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(context,()->new BrowserSessionDataSource(ua,headers,host)))).build();final ExoPlayer current=player;
-        current.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);current.setVolume(0);current.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),false);
-        current.setTrackSelectionParameters(current.getTrackSelectionParameters().buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO,true).setMaxVideoSize(1280,720).build());current.setVideoTextureView(surface);
+        current.setVideoScalingMode(C.VIDEO_SCALING_MODE_SCALE_TO_FIT_WITH_CROPPING);current.setVolume(audioEnabled?1f:0f);current.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),audioEnabled);
+        current.setTrackSelectionParameters(current.getTrackSelectionParameters().buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO,!audioEnabled).setMaxVideoSize(1280,720).build());current.setVideoTextureView(surface);
         current.addListener(new Player.Listener(){
-            public void onRenderedFirstFrame(){if(player!=current)return;firstFrame=true;updateCover();surface.animate().alpha(1).setDuration(immediate?0:250).start();android.util.Log.i("NicoStreamPreview","FIRST_FRAME MUTED=true");}
+            public void onRenderedFirstFrame(){if(player!=current)return;firstFrame=true;updateCover();surface.animate().alpha(1).setDuration(immediate?0:250).start();android.util.Log.i("NicoStreamPreview","FIRST_FRAME MUTED="+(current.getVolume()==0));}
             public void onVideoSizeChanged(VideoSize size){if(player!=current||size.height<=0||size.width<=0)return;videoAspect=(float)size.width*size.pixelWidthHeightRatio/size.height;surface.post(()->{if(player==current)updateCover();});}
             public void onPlaybackStateChanged(int state){if(player==current&&state==Player.STATE_READY){ready=true;android.util.Log.i("NicoStreamPreview","READY preload="+preload);}if(player==current&&state==Player.STATE_ENDED){ended=true;android.util.Log.i("NicoStreamPreview","ENDED durationMs="+current.getDuration());}}
             public void onPlayerError(PlaybackException error){if(player==current){android.util.Log.i("NicoStreamPreview","UNAVAILABLE code="+error.getErrorCodeName());failed=true;stop(false);}}

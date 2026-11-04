@@ -1,4 +1,5 @@
-Scheda serie più compatta.
+Audio dei trailer nelle schede serie.
 
-- Copertina sovrapposta al bordo inferiore del trailer.
-- Dati, descrizione breve e comandi affiancati per evitare lo scorrimento della scheda.
+- Il trailer della scheda serie parte con audio attivo.
+- Le anteprime della home restano silenziose.
+- L’audio si interrompe uscendo dalla scheda o avviando una puntata.
