@@ -140,7 +140,7 @@ public class MainActivity extends Activity {
     void space(LinearLayout l,int h){l.addView(new View(this),new LinearLayout.LayoutParams(1,dp(h)));}
     TextView button(String label,Runnable action){TextView b=text(label,16,WHITE);b.setGravity(Gravity.CENTER);b.setPadding(dp(20),dp(13),dp(20),dp(13));b.setMinHeight(dp(46));b.setBackground(focus());b.setFocusable(true);b.setClickable(true);b.setOnClickListener(v->action.run());return b;}
     void base(){
-        seriesScreen=null;
+        if(seriesScreen!=null){seriesScreen.close();seriesScreen=null;}
         if(searchScreen!=null){searchScreen.close();searchScreen=null;if(unifiedSearchBusy){unifiedSearchBusy=false;cancelJob();}}
         revealKey=KeyEvent.KEYCODE_UNKNOWN;
         if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}
@@ -999,7 +999,7 @@ public class MainActivity extends Activity {
     }
 
     @Override public void onBackPressed(){if(screen.equals("search")){cancelSearch();section=searchBackSection;catalogTitle=searchBackTitle;items=searchBackItems;home();}else if(screen.equals("web")){if(automaticEpisode!=null){automaticEpisode=null;home();}else if(webCustomView!=null)closeWebFullscreen();else if(browser!=null&&browser.canGoBack())browser.goBack();else home();}else if(screen.equals("loading")){cancelJob();home();}else if(screen.equals("player")){if(selected!=null&&(selected.optBoolean("localBrowserSession")||selected.optString("addonId").equals("plugin.video.nikod.toonitalia")||selected.optString("addonId").equals("plugin.video.nikod.programfeed")))home();else details(selected);}else if(!screen.equals("home")){home();}else if(!history.isEmpty()){previous();}else super.onBackPressed();}
-    @Override protected void onPause(){if(heroCarousel!=null)heroCarousel.setActive(false);savePlayback(true);super.onPause();if(player!=null)player.pause();if(browser!=null)browser.onPause();}
-    @Override protected void onResume(){super.onResume();if(updates!=null)updates.onResume();if(heroCarousel!=null)heroCarousel.setActive(true);if(browser!=null)browser.onResume();}
-    @Override protected void onDestroy(){if(searchScreen!=null){searchScreen.close();searchScreen=null;}if(posterBadges!=null)posterBadges.close();if(updates!=null)updates.close();if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}savePlayback(true);alive=false;cancelJob();if(browser!=null){try{ServiceWorkerController.getInstance().setServiceWorkerClient(null);}catch(RuntimeException ignored){}browser.destroy();browser=null;}if(player!=null){player.release();player=null;}main.removeCallbacksAndMessages(null);worker.shutdown();artworkWorker.shutdownNow();artworkCache.evictAll();super.onDestroy();}
+    @Override protected void onPause(){if(seriesScreen!=null)seriesScreen.setActive(false);if(heroCarousel!=null)heroCarousel.setActive(false);savePlayback(true);super.onPause();if(player!=null)player.pause();if(browser!=null)browser.onPause();}
+    @Override protected void onResume(){super.onResume();if(seriesScreen!=null)seriesScreen.setActive(true);if(updates!=null)updates.onResume();if(heroCarousel!=null)heroCarousel.setActive(true);if(browser!=null)browser.onResume();}
+    @Override protected void onDestroy(){if(seriesScreen!=null){seriesScreen.close();seriesScreen=null;}if(searchScreen!=null){searchScreen.close();searchScreen=null;}if(posterBadges!=null)posterBadges.close();if(updates!=null)updates.close();if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}savePlayback(true);alive=false;cancelJob();if(browser!=null){try{ServiceWorkerController.getInstance().setServiceWorkerClient(null);}catch(RuntimeException ignored){}browser.destroy();browser=null;}if(player!=null){player.release();player=null;}main.removeCallbacksAndMessages(null);worker.shutdown();artworkWorker.shutdownNow();artworkCache.evictAll();super.onDestroy();}
 }

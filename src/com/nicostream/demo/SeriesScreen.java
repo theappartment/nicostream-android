@@ -13,23 +13,25 @@ final class SeriesScreen {
     final List<View> leftControls=new ArrayList<>(),rows=new ArrayList<>(),seasonTabs=new ArrayList<>();
     View lastLeft,lastRight,seasonFilter;
     final String fallbackPoster;
+    HeroPreview preview;boolean closed;FrameLayout trailerFrame;TextureView trailerSurface;
     SeriesScreen(MainActivity app,JSONObject media,JSONArray seasons,JSONArray entries,boolean episodes){
         this.app=app;int entryCount=0;for(int n=0;n<entries.length();n++){JSONObject entry=entries.optJSONObject(n);if(entry!=null&&!entry.optBoolean("isNotice")&&(!episodes||!entry.optBoolean("isFolder")))entryCount++;}view=app.col();LinearLayout toolbar=new LinearLayout(app);toolbar.setGravity(Gravity.CENTER_VERTICAL);
         back=app.button("‹ Indietro",()->{if(!app.history.isEmpty())app.previous();else{app.section="Scopri";app.home();}});back.setFocusableInTouchMode(true);back.setTextSize(14);back.setPadding(app.dp(14),app.dp(8),app.dp(14),app.dp(8));toolbar.addView(back);TextView context=app.text(episodes?"EPISODI":"STAGIONI",11,app.MUTED);context.setGravity(Gravity.RIGHT|Gravity.CENTER_VERTICAL);toolbar.addView(context,new LinearLayout.LayoutParams(0,-2,1));view.addView(toolbar);app.space(view,12);
         LinearLayout columns=new LinearLayout(app);columns.setClipChildren(false);view.addView(columns,new LinearLayout.LayoutParams(-1,0,1));
         CenteredScrollView infoScroll=new CenteredScrollView(app);LinearLayout.LayoutParams ip=new LinearLayout.LayoutParams(0,-1,.4f);ip.rightMargin=app.dp(20);columns.addView(infoScroll,ip);
         LinearLayout info=app.col();info.setPadding(app.dp(14),app.dp(14),app.dp(14),app.dp(14));GradientDrawable panel=app.bg(Color.rgb(13,19,26),10);panel.setStroke(app.dp(1),Color.argb(25,255,255,255));info.setBackground(panel);infoScroll.addView(info);
-        String poster=media.optString("art");if(poster.isEmpty())poster=media.optString("thumb");fallbackPoster=poster;FrameLayout posterFrame=new FrameLayout(app);ImageView cover=app.artwork(poster,142,212);posterFrame.addView(cover,new FrameLayout.LayoutParams(app.dp(142),app.dp(212),Gravity.CENTER));info.addView(posterFrame,new LinearLayout.LayoutParams(-1,app.dp(212)));app.space(info,12);
-        TextView title=app.title(media.optString("title"),26);title.setMaxLines(2);title.setEllipsize(android.text.TextUtils.TruncateAt.END);info.addView(title);String year=media.optString("year"),summary="Serie TV"+(year.isEmpty()?"":" · "+year);
+        String poster=media.optString("art");if(poster.isEmpty())poster=media.optString("thumb");fallbackPoster=poster;
+        int previewWidth=Math.max(240,(int)((app.getResources().getDisplayMetrics().widthPixels/app.getResources().getDisplayMetrics().density-72)*.4f)-28),previewHeight=Math.round(previewWidth*9f/16f);
+        trailerFrame=new FrameLayout(app);trailerFrame.setBackground(app.bg(app.PANEL,8));trailerFrame.setClipToOutline(true);String backdrop=media.optString("backdrop");if(backdrop.isEmpty())backdrop=media.optString("thumb",poster);if(backdrop.isEmpty())backdrop=poster;trailerFrame.addView(app.artwork(backdrop,-1,previewHeight),new FrameLayout.LayoutParams(-1,-1));trailerSurface=new TextureView(app);trailerSurface.setAlpha(0);trailerSurface.setOpaque(false);trailerSurface.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);trailerFrame.addView(trailerSurface,new FrameLayout.LayoutParams(-1,-1,Gravity.CENTER));info.addView(trailerFrame,new LinearLayout.LayoutParams(-1,app.dp(previewHeight)));app.space(info,14);
+        LinearLayout identity=new LinearLayout(app);identity.setGravity(Gravity.CENTER_VERTICAL);identity.addView(app.artwork(poster,86,129),new LinearLayout.LayoutParams(app.dp(86),app.dp(129)));LinearLayout details=app.col();details.setPadding(app.dp(12),0,0,0);identity.addView(details,new LinearLayout.LayoutParams(0,-2,1));info.addView(identity);
+        TextView title=app.title(media.optString("title"),23);title.setMaxLines(2);title.setEllipsize(android.text.TextUtils.TruncateAt.END);details.addView(title);String year=media.optString("year"),summary="Serie TV"+(year.isEmpty()?"":" · "+year);
         if(episodes){int season=entries.length()>0?entries.optJSONObject(0).optInt("seasonNumber"):0;summary+=(season>0?" · Stagione "+season:"")+" · "+entryCount+(entryCount==1?" episodio":" episodi");}else summary+=" · "+seasons.length()+(seasons.length()==1?" stagione":" stagioni");
-        TextView metadata=app.text(summary,11,app.MINT);metadata.setMaxLines(2);info.addView(metadata);
+        TextView metadata=app.text(summary,11,app.MINT);metadata.setMaxLines(2);details.addView(metadata);
         if(!media.optString("description").isEmpty()){app.space(info,6);TextView plot=app.text(media.optString("description"),12,app.MUTED);plot.setMaxLines(5);plot.setEllipsize(android.text.TextUtils.TruncateAt.END);info.addView(plot);}app.space(info,12);
         JSONObject continuing=app.continuingSeries(media);if(continuing!=null){JSONObject source=continuing.optJSONObject("source");TextView resume=control("▶ Riprendi · S"+source.optInt("seasonNumber")+" E"+source.optInt("episodeNumber"),()->app.resumeSource(source,continuing.optLong("position")));info.addView(resume,new LinearLayout.LayoutParams(-1,-2));app.space(info,8);}
         if(media.optLong("scTitleId")>0){TextView favorite=control(app.isFavorite(media)?"✓ La mia lista":"＋ La mia lista",()->{app.toggleFavorite(media);app.home();});info.addView(favorite,new LinearLayout.LayoutParams(-1,-2));app.space(info,8);}
-        LinearLayout right=app.col();columns.addView(right,new LinearLayout.LayoutParams(0,-1,.6f));LinearLayout heading=new LinearLayout(app);heading.setGravity(Gravity.CENTER_VERTICAL);int season=entries.length()>0?entries.optJSONObject(0).optInt("seasonNumber"):0;
-        int total=entryCount;
-        heading.addView(app.title(episodes?"Episodi":"Stagioni",22),new LinearLayout.LayoutParams(0,-2,1));
-        TextView count=app.text(String.valueOf(total),11,app.BG);count.setGravity(Gravity.CENTER);count.setBackground(app.bg(app.MINT,16));count.setPadding(app.dp(10),app.dp(4),app.dp(10),app.dp(4));LinearLayout.LayoutParams countParams=new LinearLayout.LayoutParams(-2,-2);countParams.leftMargin=app.dp(10);heading.addView(count,countParams);right.addView(heading);right.addView(app.text(episodes?"OK per guardare · Il punto di ripresa è salvato":"Scegli una stagione per vedere gli episodi",11,app.MUTED));app.space(right,6);
+        LinearLayout right=app.col();columns.addView(right,new LinearLayout.LayoutParams(0,-1,.6f));int season=entries.length()>0?entries.optJSONObject(0).optInt("seasonNumber"):0;
+        if(!episodes){right.addView(app.title("Stagioni",22));app.space(right,6);}
         if(episodes&&seasons.length()>0){
             HorizontalScrollView tabsScroll=new HorizontalScrollView(app);tabsScroll.setHorizontalScrollBarEnabled(false);tabsScroll.setClipToPadding(false);LinearLayout tabs=new LinearLayout(app);tabs.setPadding(app.dp(3),app.dp(4),app.dp(3),app.dp(8));tabsScroll.addView(tabs);
             for(int n=0;n<seasons.length();n++){JSONObject target=seasons.optJSONObject(n);if(target==null)continue;boolean active=target.optInt("seasonNumber")==season;TextView tab=app.button(target.optString("title"),()->{if(!active)app.scCatalog(target);});tab.setTextSize(13);tab.setPadding(app.dp(14),app.dp(9),app.dp(14),app.dp(9));tab.setTextColor(active?app.MINT:app.MUTED);tab.setContentDescription(target.optString("title")+(active?", selezionata":""));tab.setSelected(active);tab.setBackground(app.focus());LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-2,-2);tp.rightMargin=app.dp(8);tabs.addView(tab,tp);seasonTabs.add(tab);if(active||seasonFilter==null)seasonFilter=tab;}
@@ -38,7 +40,17 @@ final class SeriesScreen {
         CenteredScrollView scroll=new CenteredScrollView(app);LinearLayout list=app.col();list.setPadding(app.dp(5),0,app.dp(5),0);scroll.addView(list);right.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         for(int n=0;n<entries.length();n++){JSONObject item=entries.optJSONObject(n);if(item==null)continue;View row=episodes?episode(item):season(item);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(-1,episodes?app.dp(105):app.dp(77));rp.bottomMargin=app.dp(10);list.addView(row,rp);rows.add(row);}
         back.post(()->{if(back.isAttachedToWindow())back.requestFocus();});
+        loadPreview(media);
+
     }
+    void loadPreview(JSONObject media){
+        if(HeroPreviewResolver.allowed(media.optString("previewURL"))){startPreview(media);return;}
+        if(media.optLong("scTitleId")<=0||media.optString("url").isEmpty())return;
+        app.worker.execute(()->{try{JSONObject props=app.scPage(media.optString("url"),android.webkit.WebSettings.getDefaultUserAgent(app));JSONObject record=props.getJSONObject("title");if(record.optLong("id")!=media.optLong("scTitleId"))return;JSONObject ready=StreamingCommunityCatalog.titleEntry(record,props,props.optString("_sourceOrigin",app.providerOrigin()));app.main.post(()->{if(!closed&&app.seriesScreen==this)startPreview(ready);});}catch(Exception ignored){}});
+    }
+    void startPreview(JSONObject media){if(closed||!HeroPreviewResolver.allowed(media.optString("previewURL")))return;preview=new HeroPreview(app,trailerFrame,trailerSurface,app.worker,media.optString("previewURL"),media.optString("previewReferer",app.providerOrigin()+"/it"),android.webkit.WebSettings.getDefaultUserAgent(app),false,false);}
+    void setActive(boolean active){if(preview!=null)preview.setActive(active);}
+    void close(){closed=true;if(preview!=null){preview.dispose();preview=null;}}
     TextView control(String label,Runnable action){TextView button=app.button(label,action);button.setTextSize(13);button.setPadding(app.dp(12),app.dp(10),app.dp(12),app.dp(10));leftControls.add(button);return button;}
     View season(JSONObject item){
         LinearLayout row=new LinearLayout(app);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(app.dp(12),app.dp(10),app.dp(14),app.dp(10));app.focusCard(row,item);row.setContentDescription(item.optString("title")+" · "+item.optString("tag"));
