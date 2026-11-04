@@ -395,8 +395,8 @@ public class MainActivity extends Activity {
         // Match iPad: an outlined number behind a 2:3 poster, with wider space for 10.
         int height=228,posterWidth=152,numberWidth=Math.round(height*(rank>=10?1.22f:.82f));
         int inset=Math.round(numberWidth*.78f);
-        FrameLayout card=new FrameLayout(this);card.setPadding(dp(4),dp(4),dp(4),dp(4));focusCard(card,item);
-        card.setBackground(focus(Color.TRANSPARENT));
+        FrameLayout card=new FrameLayout(this);card.setPadding(dp(18),dp(18),dp(18),dp(18));focusCard(card,item);
+        card.setBackground(new RankedFocusDrawable());
         card.setContentDescription("Numero "+rank+": "+item.optString("title"));
         View number=new View(this){
             final android.graphics.Paint paint=new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
@@ -407,13 +407,13 @@ public class MainActivity extends Activity {
                 if(bounds.width()==0||bounds.height()==0)return;
                 float stroke=getResources().getDisplayMetrics().density*2.5f,scale=Math.min((getWidth()-stroke*2)/bounds.width(),(getHeight()-stroke*2)/bounds.height());
                 android.graphics.Matrix matrix=new android.graphics.Matrix();matrix.setScale(scale,scale);matrix.postTranslate((getWidth()-bounds.width()*scale)/2-bounds.left*scale,(getHeight()-bounds.height()*scale)/2-bounds.top*scale);
-                android.graphics.Path fitted=new android.graphics.Path();glyph.transform(matrix,fitted);paint.setStyle(android.graphics.Paint.Style.STROKE);paint.setStrokeWidth(stroke);paint.setColor(Color.rgb(97,97,97));canvas.drawPath(fitted,paint);paint.setStyle(android.graphics.Paint.Style.FILL);
+                android.graphics.Path fitted=new android.graphics.Path();glyph.transform(matrix,fitted);paint.setStyle(android.graphics.Paint.Style.STROKE);paint.setStrokeWidth(stroke);boolean selected=card.hasFocus()||card.isPressed();paint.setColor(selected?MINT:Color.rgb(97,97,97));if(selected)paint.setShadowLayer(dp(7),0,0,Color.argb(180,112,239,199));else paint.clearShadowLayer();canvas.drawPath(fitted,paint);paint.clearShadowLayer();paint.setStyle(android.graphics.Paint.Style.FILL);
             }
         };
-        number.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);card.addView(number,new FrameLayout.LayoutParams(dp(numberWidth),dp(height)));
+        number.setLayerType(View.LAYER_TYPE_SOFTWARE,null);card.setOnFocusChangeListener((v,on)->{if(on)focusItem=item.optString("id");number.invalidate();});number.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);card.addView(number,new FrameLayout.LayoutParams(dp(numberWidth),dp(height)));
         ImageView poster=artwork(item.optString("art"),posterWidth,height);poster.setBackground(bg(PANEL,2));poster.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         FrameLayout.LayoutParams imageParams=new FrameLayout.LayoutParams(dp(posterWidth),dp(height));imageParams.leftMargin=dp(inset);card.addView(poster,imageParams);
-        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(dp(inset+posterWidth+8),dp(height+8));params.setMargins(0,0,dp(14),dp(12));card.setLayoutParams(params);return card;
+        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(dp(inset+posterWidth+36),dp(height+36));params.setMargins(0,0,dp(14),dp(12));card.setLayoutParams(params);return card;
     }
     void hero(JSONObject item){
         LinearLayout h=col();h.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{Color.rgb(29,68,66),Color.rgb(22,35,46)}));h.setPadding(dp(28),dp(22),dp(28),dp(24));
@@ -765,25 +765,31 @@ public class MainActivity extends Activity {
         if(next==null)return;savePlayback(true);
         try{JSONObject fresh=PlaybackHistory.source(next).put("resumeAt",0);android.util.Log.i("NicoStreamPlayback","NEXT_EPISODE id="+fresh.optLong("scEpisodeId"));resumeSource(fresh,0);prefs.edit().putString("playbackHistory",PlaybackHistory.update(playbackHistory(),fresh,0,0,false,System.currentTimeMillis()).toString()).apply();}catch(Exception e){home();showError("La puntata successiva non è disponibile.");}
     }
-    void confirmRemoveContinue(JSONObject source){
+    void confirmRemoveContinue(JSONObject source,View card,View block){
         String title=source.optString("seriesTitle",source.optString("title"));
         new AlertDialog.Builder(this).setTitle("Rimuovere da Continua a guardare?")
             .setMessage(title+" non comparirà più in questa riga. Il punto di ripresa sarà conservato.")
             .setNegativeButton("Annulla",null).setPositiveButton("Rimuovi",(dialog,which)->{
-                Set<String> hidden=new java.util.HashSet<>(prefs.getStringSet("hiddenContinueGroups",java.util.Collections.emptySet()));hidden.add(PlaybackHistory.group(source));prefs.edit().putStringSet("hiddenContinueGroups",hidden).apply();rememberDiscover();home();
+                Set<String> hidden=new java.util.HashSet<>(prefs.getStringSet("hiddenContinueGroups",java.util.Collections.emptySet()));hidden.add(PlaybackHistory.group(source));prefs.edit().putStringSet("hiddenContinueGroups",hidden).apply();
+                if(card.getParent() instanceof LinearLayout){
+                    LinearLayout shelf=(LinearLayout)card.getParent();int index=shelf.indexOfChild(card);
+                    if(shelf.getChildCount()>1){View neighbor=shelf.getChildAt(index+1<shelf.getChildCount()?index+1:index-1);shelf.removeView(card);neighbor.requestFocus();neighbor.post(()->{if(neighbor.isAttachedToWindow())neighbor.requestFocus();});}
+                    else{tvFocus.move(root,card,KeyEvent.KEYCODE_DPAD_DOWN);if(block.getParent() instanceof ViewGroup)((ViewGroup)block.getParent()).removeView(block);}
+                    rememberDiscover();
+                }
             }).show();
     }
     void continueShelf(){
         JSONArray entries=new JSONArray();Set<String> hidden=prefs.getStringSet("hiddenContinueGroups",java.util.Collections.emptySet());JSONArray continuing=PlaybackHistory.continuing(playbackHistory());for(int n=0;n<continuing.length();n++){JSONObject entry=continuing.optJSONObject(n);if(entry!=null&&entry.optJSONObject("source")!=null&&!hidden.contains(PlaybackHistory.group(entry.optJSONObject("source"))))entries.put(entry);}if(entries.length()==0)return;
-        body.addView(title("Continua a guardare",22));space(body,8);HorizontalScrollView scroll=tvShelf();scroll.setHorizontalScrollBarEnabled(false);LinearLayout shelf=new LinearLayout(this);shelf.setClipChildren(false);shelf.setClipToPadding(false);
+        LinearLayout block=col();body.addView(block);block.addView(title("Continua a guardare",22));space(block,8);HorizontalScrollView scroll=tvShelf();scroll.setHorizontalScrollBarEnabled(false);LinearLayout shelf=new LinearLayout(this);shelf.setClipChildren(false);shelf.setClipToPadding(false);
         for(int i=0;i<entries.length();i++){
             JSONObject entry=entries.optJSONObject(i),source=entry.optJSONObject("source");if(source==null)continue;long position=entry.optLong("position"),duration=entry.optLong("duration");
-            LinearLayout card=col();card.setPadding(dp(10),dp(10),dp(10),dp(10));card.setBackground(focus());card.setFocusable(true);card.setClickable(true);card.setContentDescription("Riprendi "+source.optString("title"));card.setOnClickListener(v->resumeSource(source,position));card.setOnLongClickListener(v->{confirmRemoveContinue(source);return true;});
+            LinearLayout card=col();card.setPadding(dp(10),dp(10),dp(10),dp(10));card.setBackground(focus());card.setFocusable(true);card.setClickable(true);card.setContentDescription("Riprendi "+source.optString("title"));card.setOnClickListener(v->resumeSource(source,position));card.setOnLongClickListener(v->{confirmRemoveContinue(source,card,block);return true;});
             String image=source.optString("thumb");if(image.isEmpty())image=source.optString("art");card.addView(artwork(image,-1,92));TextView name=title(source.optString("seriesTitle",source.optString("title")),16);name.setMaxLines(1);name.setEllipsize(android.text.TextUtils.TruncateAt.END);card.addView(name);
             if(source.optInt("episodeNumber")>0)card.addView(text("Stagione "+source.optInt("seasonNumber")+" · Episodio "+source.optInt("episodeNumber"),12,MUTED));
             ProgressBar progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setProgressTintList(android.content.res.ColorStateList.valueOf(MINT));progress.setMax(1000);progress.setProgress(duration>0?(int)(position*1000/duration):0);card.addView(progress,new LinearLayout.LayoutParams(-1,dp(5)));card.addView(text(position>0?"▶ Riprendi da "+time(position):"▶ Guarda ora",12,MINT));
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(dp(260),-2);cp.setMargins(0,0,dp(14),0);shelf.addView(card,cp);
-        }scroll.addView(shelf);body.addView(scroll);space(body,20);
+        }scroll.addView(shelf);block.addView(scroll);space(block,20);
     }
     void play(JSONObject item){
         screen="player";base();selected=item;playingSource=item.optJSONObject("resumeSource");if(playingSource==null&&!item.optBoolean("localBrowserSession"))try{playingSource=PlaybackHistory.source(item);}catch(Exception ignored){}lastProgressSave=0;root.setPadding(0,0,0,0);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);

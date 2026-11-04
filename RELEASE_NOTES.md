@@ -1,5 +1,4 @@
-Audio e Continua a guardare.
+Focus Top 10 e Continua a guardare.
 
-- Audio della hero attivo di default; la scelta audio/muto resta salvata dopo la chiusura.
-- Tieni premuto OK su Continua a guardare per rimuovere un titolo con conferma.
-- Il punto di ripresa viene conservato; il titolo ricompare quando torni a guardarlo.
+- Glow verde menta dietro numero e copertina solo nella Top 10, senza bordo rettangolare.
+- Rimuovere un titolo da Continua a guardare mantiene il focus sulla card vicina e non ricostruisce la home.
