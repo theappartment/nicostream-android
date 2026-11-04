@@ -103,7 +103,7 @@ public class MainActivity extends Activity {
     int dp(float n){return (int)(getResources().getDisplayMetrics().density*n+.5f);}
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
-        prefs=getSharedPreferences("nico",0);posterBadges=new PosterBadges();
+        prefs=getSharedPreferences("nico",0);homeTrailerAudio=prefs.getBoolean("homeTrailerAudio",true);posterBadges=new PosterBadges();
         updates=new AppUpdates(this,()->screen.equals("home")&&section.equals("Scopri")&&currentJob.isEmpty());
         if(getIntent().getBooleanExtra("import_engine_setup",false)){
             File setup=new File(getExternalFilesDir(null),"engine-setup.json");
@@ -345,11 +345,11 @@ public class MainActivity extends Activity {
         arrow.setBackground(focus(Color.TRANSPARENT));
         arrow.setImageTintList(new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_focused},new int[]{android.R.attr.state_pressed},new int[]{}},new int[]{MINT,MINT,MUTED}));return arrow;
     }
-    boolean homeTrailerAudio=false;
+    boolean homeTrailerAudio=true;
     void discoverHero(JSONObject item){
         FrameLayout outer=new FrameLayout(this),stage=new FrameLayout(this);outer.setTag("tv-focus-anchor");outer.setClipChildren(false);outer.addView(stage,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout pager=new LinearLayout(this);pager.setGravity(Gravity.CENTER_VERTICAL);ImageButton previous=carouselArrow(false),next=carouselArrow(true);TextView counter=text("",11,MUTED);previous.setContentDescription("Titolo precedente");next.setContentDescription("Titolo successivo");counter.setGravity(Gravity.CENTER);counter.setLetterSpacing(.04f);counter.setAlpha(.8f);pager.addView(previous,new LinearLayout.LayoutParams(dp(44),dp(44)));pager.addView(counter,new LinearLayout.LayoutParams(dp(44),-2));pager.addView(next,new LinearLayout.LayoutParams(dp(44),dp(44)));
-        ImageButton sound=carouselArrow(true);sound.setImageResource(homeTrailerAudio?R.drawable.ic_audio_on:R.drawable.ic_audio_off);sound.setContentDescription(homeTrailerAudio?"Disattiva audio trailer":"Attiva audio trailer");sound.setOnClickListener(v->{homeTrailerAudio=!homeTrailerAudio;sound.setImageResource(homeTrailerAudio?R.drawable.ic_audio_on:R.drawable.ic_audio_off);sound.setContentDescription(homeTrailerAudio?"Disattiva audio trailer":"Attiva audio trailer");if(heroCarousel!=null)heroCarousel.setAudioEnabled(homeTrailerAudio);});LinearLayout.LayoutParams soundParams=new LinearLayout.LayoutParams(dp(44),dp(44));soundParams.leftMargin=dp(14);pager.addView(sound,soundParams);
+        ImageButton sound=carouselArrow(true);sound.setImageResource(homeTrailerAudio?R.drawable.ic_audio_on:R.drawable.ic_audio_off);sound.setContentDescription(homeTrailerAudio?"Disattiva audio trailer":"Attiva audio trailer");sound.setOnClickListener(v->{homeTrailerAudio=!homeTrailerAudio;prefs.edit().putBoolean("homeTrailerAudio",homeTrailerAudio).apply();sound.setImageResource(homeTrailerAudio?R.drawable.ic_audio_on:R.drawable.ic_audio_off);sound.setContentDescription(homeTrailerAudio?"Disattiva audio trailer":"Attiva audio trailer");if(heroCarousel!=null)heroCarousel.setAudioEnabled(homeTrailerAudio);});LinearLayout.LayoutParams soundParams=new LinearLayout.LayoutParams(dp(44),dp(44));soundParams.leftMargin=dp(14);pager.addView(sound,soundParams);
         FrameLayout.LayoutParams pagerParams=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.RIGHT);pagerParams.rightMargin=dp(28);pagerParams.bottomMargin=dp(12);outer.addView(pager,pagerParams);tvFocus.secondary(pager);
         body.addView(outer,new LinearLayout.LayoutParams(-1,dp(440)));space(body,24);heroCarousel=new HeroCarousel(stage,this::buildHeroSlide,counter,previous,next);JSONArray candidates=HeroSelection.candidates(discoverFeed);if(candidates.length()==0)candidates.put(item);heroCarousel.setAudioEnabled(homeTrailerAudio);heroCarousel.update(candidates);
     }
@@ -749,7 +749,7 @@ public class MainActivity extends Activity {
     long resumePosition(JSONObject source){if(source==null)return 0;JSONObject entry=PlaybackHistory.find(playbackHistory(),source);return entry==null||entry.optBoolean("completed")?0:entry.optLong("position");}
     void savePlayback(boolean durable){
         if(player==null||playingSource==null||playingSource.optBoolean("isLive")||!playingStarted||player.getDuration()<=0||player.isCurrentMediaItemLive())return;
-        try{JSONArray updated=PlaybackHistory.update(playbackHistory(),playingSource,player.getCurrentPosition(),player.getDuration(),player.getPlaybackState()==Player.STATE_ENDED,System.currentTimeMillis());android.content.SharedPreferences.Editor edit=prefs.edit().putString("playbackHistory",updated.toString());if(durable)edit.commit();else edit.apply();lastProgressSave=System.currentTimeMillis();}catch(Exception ignored){}
+        try{JSONArray updated=PlaybackHistory.update(playbackHistory(),playingSource,player.getCurrentPosition(),player.getDuration(),player.getPlaybackState()==Player.STATE_ENDED,System.currentTimeMillis());Set<String> hidden=new java.util.HashSet<>(prefs.getStringSet("hiddenContinueGroups",java.util.Collections.emptySet()));hidden.remove(PlaybackHistory.group(playingSource));android.content.SharedPreferences.Editor edit=prefs.edit().putString("playbackHistory",updated.toString()).putStringSet("hiddenContinueGroups",hidden);if(durable)edit.commit();else edit.apply();lastProgressSave=System.currentTimeMillis();}catch(Exception ignored){}
     }
     void chooseEpisode(JSONObject source){
         long position=resumePosition(source);if(position<=0){resumeSource(source,0);return;}
@@ -765,12 +765,20 @@ public class MainActivity extends Activity {
         if(next==null)return;savePlayback(true);
         try{JSONObject fresh=PlaybackHistory.source(next).put("resumeAt",0);android.util.Log.i("NicoStreamPlayback","NEXT_EPISODE id="+fresh.optLong("scEpisodeId"));resumeSource(fresh,0);prefs.edit().putString("playbackHistory",PlaybackHistory.update(playbackHistory(),fresh,0,0,false,System.currentTimeMillis()).toString()).apply();}catch(Exception e){home();showError("La puntata successiva non è disponibile.");}
     }
+    void confirmRemoveContinue(JSONObject source){
+        String title=source.optString("seriesTitle",source.optString("title"));
+        new AlertDialog.Builder(this).setTitle("Rimuovere da Continua a guardare?")
+            .setMessage(title+" non comparirà più in questa riga. Il punto di ripresa sarà conservato.")
+            .setNegativeButton("Annulla",null).setPositiveButton("Rimuovi",(dialog,which)->{
+                Set<String> hidden=new java.util.HashSet<>(prefs.getStringSet("hiddenContinueGroups",java.util.Collections.emptySet()));hidden.add(PlaybackHistory.group(source));prefs.edit().putStringSet("hiddenContinueGroups",hidden).apply();rememberDiscover();home();
+            }).show();
+    }
     void continueShelf(){
-        JSONArray entries=PlaybackHistory.continuing(playbackHistory());if(entries.length()==0)return;
+        JSONArray entries=new JSONArray();Set<String> hidden=prefs.getStringSet("hiddenContinueGroups",java.util.Collections.emptySet());JSONArray continuing=PlaybackHistory.continuing(playbackHistory());for(int n=0;n<continuing.length();n++){JSONObject entry=continuing.optJSONObject(n);if(entry!=null&&entry.optJSONObject("source")!=null&&!hidden.contains(PlaybackHistory.group(entry.optJSONObject("source"))))entries.put(entry);}if(entries.length()==0)return;
         body.addView(title("Continua a guardare",22));space(body,8);HorizontalScrollView scroll=tvShelf();scroll.setHorizontalScrollBarEnabled(false);LinearLayout shelf=new LinearLayout(this);shelf.setClipChildren(false);shelf.setClipToPadding(false);
         for(int i=0;i<entries.length();i++){
             JSONObject entry=entries.optJSONObject(i),source=entry.optJSONObject("source");if(source==null)continue;long position=entry.optLong("position"),duration=entry.optLong("duration");
-            LinearLayout card=col();card.setPadding(dp(10),dp(10),dp(10),dp(10));card.setBackground(focus());card.setFocusable(true);card.setClickable(true);card.setContentDescription("Riprendi "+source.optString("title"));card.setOnClickListener(v->resumeSource(source,position));
+            LinearLayout card=col();card.setPadding(dp(10),dp(10),dp(10),dp(10));card.setBackground(focus());card.setFocusable(true);card.setClickable(true);card.setContentDescription("Riprendi "+source.optString("title"));card.setOnClickListener(v->resumeSource(source,position));card.setOnLongClickListener(v->{confirmRemoveContinue(source);return true;});
             String image=source.optString("thumb");if(image.isEmpty())image=source.optString("art");card.addView(artwork(image,-1,92));TextView name=title(source.optString("seriesTitle",source.optString("title")),16);name.setMaxLines(1);name.setEllipsize(android.text.TextUtils.TruncateAt.END);card.addView(name);
             if(source.optInt("episodeNumber")>0)card.addView(text("Stagione "+source.optInt("seasonNumber")+" · Episodio "+source.optInt("episodeNumber"),12,MUTED));
             ProgressBar progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setProgressTintList(android.content.res.ColorStateList.valueOf(MINT));progress.setMax(1000);progress.setProgress(duration>0?(int)(position*1000/duration):0);card.addView(progress,new LinearLayout.LayoutParams(-1,dp(5)));card.addView(text(position>0?"▶ Riprendi da "+time(position):"▶ Guarda ora",12,MINT));

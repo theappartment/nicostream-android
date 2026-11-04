@@ -1,6 +1,5 @@
-Impostazioni e navigazione TV.
+Audio e Continua a guardare.
 
-- Impostazioni a categorie, con opzioni a destra in stile Android TV.
-- Frecce e audio della hero raggiungibili con destra; giù passa ai contenuti.
-- Colonna trailer della serie fissa e non selezionabile.
-- Riprendi e La mia lista allineati al pulsante Indietro sopra le stagioni.
+- Audio della hero attivo di default; la scelta audio/muto resta salvata dopo la chiusura.
+- Tieni premuto OK su Continua a guardare per rimuovere un titolo con conferma.
+- Il punto di ripresa viene conservato; il titolo ricompare quando torni a guardarlo.
