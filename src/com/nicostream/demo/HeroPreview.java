@@ -43,12 +43,11 @@ final class HeroPreview {
         current.addListener(new Player.Listener(){
             public void onRenderedFirstFrame(){if(player!=current)return;firstFrame=true;updateCover();surface.animate().alpha(1).setDuration(immediate?0:250).start();android.util.Log.i("NicoStreamPreview","FIRST_FRAME MUTED=true");}
             public void onVideoSizeChanged(VideoSize size){if(player!=current||size.height<=0||size.width<=0)return;videoAspect=(float)size.width*size.pixelWidthHeightRatio/size.height;surface.post(()->{if(player==current)updateCover();});}
-            public void onPlaybackStateChanged(int state){if(player==current&&state==Player.STATE_READY){ready=true;android.util.Log.i("NicoStreamPreview","READY preload="+preload);}if(player==current&&state==Player.STATE_ENDED){ended=true;stop(false);}}
+            public void onPlaybackStateChanged(int state){if(player==current&&state==Player.STATE_READY){ready=true;android.util.Log.i("NicoStreamPreview","READY preload="+preload);}if(player==current&&state==Player.STATE_ENDED){ended=true;android.util.Log.i("NicoStreamPreview","ENDED durationMs="+current.getDuration());}}
             public void onPlayerError(PlaybackException error){if(player==current){android.util.Log.i("NicoStreamPreview","UNAVAILABLE code="+error.getErrorCodeName());failed=true;stop(false);}}
         });
         current.setMediaItem(new MediaItem.Builder().setUri(url).setMimeType(MimeTypes.APPLICATION_M3U8).build());current.prepare();if(!preload)current.play();
         handler.postDelayed(()->{if(player==current&&!firstFrame&&(!preload||!ready)){failed=true;stop(false);}},15000);
-        handler.postDelayed(()->{if(player==current&&!preload){ended=true;stop(false);}},60000);
     }
     void updateCover(){
         if(videoAspect<=0||!(surface.getParent() instanceof android.view.View))return;
