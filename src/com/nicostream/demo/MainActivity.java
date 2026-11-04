@@ -332,9 +332,14 @@ public class MainActivity extends Activity {
         if(server().isEmpty()&&(rails==null||rails.length()==0))for(int i=0;i<items.length();i++){JSONObject item=items.optJSONObject(i);if(item!=null)body.addView(card(item));}
         space(body,20);
     }
+    ImageButton carouselArrow(boolean forward){
+        ImageButton arrow=new ImageButton(this);arrow.setImageResource(forward?R.drawable.ic_carousel_next:R.drawable.ic_carousel_previous);arrow.setScaleType(ImageView.ScaleType.CENTER);arrow.setPadding(0,0,0,0);arrow.setFocusable(true);arrow.setClickable(true);
+        StateListDrawable background=new StateListDrawable();GradientDrawable selected=bg(Color.argb(22,153,239,202),22);selected.setStroke(dp(1),Color.argb(170,153,239,202));background.addState(new int[]{android.R.attr.state_focused},selected);background.addState(new int[]{android.R.attr.state_pressed},selected);background.addState(new int[]{},bg(Color.TRANSPARENT,22));arrow.setBackground(background);
+        arrow.setImageTintList(new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_focused},new int[]{android.R.attr.state_pressed},new int[]{}},new int[]{MINT,MINT,MUTED}));return arrow;
+    }
     void discoverHero(JSONObject item){
         FrameLayout outer=new FrameLayout(this),stage=new FrameLayout(this);outer.setTag("tv-focus-anchor");outer.setClipChildren(false);outer.addView(stage,new FrameLayout.LayoutParams(-1,-1));
-        LinearLayout pager=new LinearLayout(this);pager.setGravity(Gravity.CENTER_VERTICAL);TextView previous=button("‹",()->{}),next=button("›",()->{}),counter=text("",12,MUTED);previous.setContentDescription("Titolo precedente");next.setContentDescription("Titolo successivo");counter.setGravity(Gravity.CENTER);pager.addView(previous);pager.addView(counter,new LinearLayout.LayoutParams(dp(65),-2));pager.addView(next);
+        LinearLayout pager=new LinearLayout(this);pager.setGravity(Gravity.CENTER_VERTICAL);ImageButton previous=carouselArrow(false),next=carouselArrow(true);TextView counter=text("",11,MUTED);previous.setContentDescription("Titolo precedente");next.setContentDescription("Titolo successivo");counter.setGravity(Gravity.CENTER);counter.setLetterSpacing(.04f);counter.setAlpha(.8f);pager.addView(previous,new LinearLayout.LayoutParams(dp(44),dp(44)));pager.addView(counter,new LinearLayout.LayoutParams(dp(44),-2));pager.addView(next,new LinearLayout.LayoutParams(dp(44),dp(44)));
         FrameLayout.LayoutParams pagerParams=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.RIGHT);pagerParams.rightMargin=dp(28);pagerParams.bottomMargin=dp(12);outer.addView(pager,pagerParams);
         body.addView(outer,new LinearLayout.LayoutParams(-1,dp(440)));space(body,24);heroCarousel=new HeroCarousel(stage,this::buildHeroSlide,counter,previous,next);JSONArray candidates=HeroSelection.candidates(discoverFeed);if(candidates.length()==0)candidates.put(item);heroCarousel.update(candidates);
     }
