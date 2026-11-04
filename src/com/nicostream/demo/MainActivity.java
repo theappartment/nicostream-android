@@ -38,7 +38,15 @@ public class MainActivity extends Activity {
     long sourceIndexUpdated=0;
     int sourceIndexFailures=0;
     final ArrayList<Runnable> sourceIndexWaiters=new ArrayList<>();
-    boolean programHomeLoading=false;
+    boolean programHomeLoading=false,programHomePendingRender=false;
+    final Runnable programHomeRefresh=new Runnable(){public void run(){
+        if(!alive)return;
+        if(screen.equals("home")&&section.equals("Scopri")){
+            if(programHomePendingRender)renderProgramHome();
+            loadProgramHome(false);
+        }
+        main.postDelayed(this,15*60*1000);
+    }};
     long programHomeUpdated=0;
     long programHomeRevision=0;
     String programHomeServer="";
@@ -281,19 +289,21 @@ public class MainActivity extends Activity {
     void loadProgramHome(boolean force){
         if(server().isEmpty()||programHomeLoading)return;
         final String endpoint=server();final long revision=programHomeRevision;
-        if(!force&&endpoint.equals(programHomeServer)&&System.currentTimeMillis()-programHomeUpdated<30000)return;
+        if(!force&&endpoint.equals(programHomeServer)&&System.currentTimeMillis()-programHomeUpdated<15*60*1000)return;
         programHomeLoading=true;
         worker.execute(()->{
             try{JSONObject feed=api("/v1/home/programfeed",null);main.post(()->{
                 programHomeLoading=false;if(!alive||!server().equals(endpoint))return;
                 if(revision!=programHomeRevision){if(screen.equals("home")&&section.equals("Scopri"))loadProgramHome(true);return;}
-                programHomeServer=endpoint;programHomeFeed=feed;programHomeUpdated=System.currentTimeMillis();renderProgramHome();
+                boolean changed=!endpoint.equals(programHomeServer)||programHomeFeed==null||!programHomeFeed.toString().equals(feed.toString());
+                programHomeServer=endpoint;programHomeFeed=feed;programHomeUpdated=System.currentTimeMillis();if(changed)renderProgramHome();
             });}catch(Exception e){main.post(()->{programHomeLoading=false;if(alive&&server().equals(endpoint)&&programHomeFeed==null&&programHomeSlot!=null&&programHomeSlot.isAttachedToWindow()){programHomeSlot.removeAllViews();programHomeSlot.addView(button("Program Feed · Riprova",()->loadProgramHome(true)));}});}
         });
     }
     void renderProgramHome(){
         if(programHomeSlot==null||!programHomeSlot.isAttachedToWindow())return;
-        programHomeSlot.removeAllViews();
+        if(programHomeSlot.hasFocus()){programHomePendingRender=true;return;}
+        programHomePendingRender=false;programHomeSlot.removeAllViews();
         if(programHomeFeed==null||!programHomeServer.equals(server())||!programHomeFeed.optBoolean("enabled"))return;
         LinearLayout previousBody=body;body=programHomeSlot;
         JSONArray proposals=programHomeFeed.optJSONArray("items");
@@ -846,6 +856,10 @@ public class MainActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("Audio e sottotitoli").setItems(labels.toArray(new String[0]),(d,i)->{if(player!=null)actions.get(i).run();}).setNegativeButton("Chiudi",null).show();
     }
     @Override public boolean dispatchKeyEvent(KeyEvent e){
+        if(e.getKeyCode()==KeyEvent.KEYCODE_BACK&&screen.equals("home")&&getWindow().getDecorView().hasWindowFocus()){
+            if(e.getAction()==KeyEvent.ACTION_UP&&!e.isCanceled())onBackPressed();
+            return true;
+        }
         if(opening!=null&&opening.visible()){if(e.getAction()==KeyEvent.ACTION_DOWN)opening.dismiss();return true;}
         if(screen.equals("search")&&e.getAction()==KeyEvent.ACTION_DOWN&&getWindow().getDecorView().hasWindowFocus()){
             if(searchScreen!=null&&searchScreen.move(getCurrentFocus(),e.getKeyCode()))return true;
@@ -984,7 +998,7 @@ public class MainActivity extends Activity {
         content.addView(title("Domini delle sorgenti",24));content.addView(text("L’indice Stream4me viene aggiornato automaticamente. Se non è disponibile, viene mantenuta l’ultima copia valida.",14,MUTED));
         sourceDomainStatus=text("StreamingCommunity: "+(providerOrigin().isEmpty()?"verifica in corso":Uri.parse(providerOrigin()).getHost())+(sourceIndexWarning?" · ultima copia valida":""),14,MINT);content.addView(sourceDomainStatus);space(content,8);
         content.addView(button("Aggiorna domini sorgenti",()->refreshSourceIndex(true,()->Toast.makeText(this,sourceIndexWarning?"Uso l’ultima copia valida delle sorgenti":"Domini delle sorgenti aggiornati",Toast.LENGTH_LONG).show())));space(content,24);
-        content.addView(title("Connessione a NicoStream",28));content.addView(text("Il server è già configurato. La connessione parte automaticamente all’apertura dell’app.",16,MUTED));space(content,12);
+        content.addView(title("Connessione a NicoFlix",28));content.addView(text("Il server è già configurato. La connessione parte automaticamente all’apertura dell’app.",16,MUTED));space(content,12);
         content.addView(text(EngineAccess.SERVER,16,MINT));space(content,12);
         boolean authorized=!prefs.getString("serverKey","").isEmpty();
         content.addView(text(authorized?"Accesso salvato su questo dispositivo.":"Autorizza questo dispositivo una sola volta con la tua chiave di accesso.",15,MUTED));space(content,12);
@@ -993,13 +1007,27 @@ public class MainActivity extends Activity {
         if(authorized)content.addView(button("‹ Torna al catalogo",this::home));
     }
     void editEngineAccess(){
-        EditText key=new EditText(this);key.setSingleLine(true);key.setInputType(129);key.setSaveEnabled(false);key.setHint("Chiave privata NicoStream");key.setText(prefs.getString("serverKey",""));
+        EditText key=new EditText(this);key.setSingleLine(true);key.setInputType(129);key.setSaveEnabled(false);key.setHint("Chiave privata NicoFlix");key.setText(prefs.getString("serverKey",""));
         AlertDialog dialog=new AlertDialog.Builder(this).setTitle("Accesso al dispositivo").setView(key).setPositiveButton("Salva",null).setNegativeButton("Annulla",null).create();
         dialog.setOnShowListener(ignored->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v->{String value=key.getText().toString().trim();if(!value.matches("[a-f0-9]{64}")){key.setError("La chiave deve contenere 64 caratteri esadecimali");return;}prefs.edit().putString("serverKey",value).apply();dialog.dismiss();refreshSourceIndex(true,null);home();}));dialog.show();
     }
 
-    @Override public void onBackPressed(){if(screen.equals("search")){cancelSearch();section=searchBackSection;catalogTitle=searchBackTitle;items=searchBackItems;home();}else if(screen.equals("web")){if(automaticEpisode!=null){automaticEpisode=null;home();}else if(webCustomView!=null)closeWebFullscreen();else if(browser!=null&&browser.canGoBack())browser.goBack();else home();}else if(screen.equals("loading")){cancelJob();home();}else if(screen.equals("player")){if(selected!=null&&(selected.optBoolean("localBrowserSession")||selected.optString("addonId").equals("plugin.video.nikod.toonitalia")||selected.optString("addonId").equals("plugin.video.nikod.programfeed")))home();else details(selected);}else if(!screen.equals("home")){home();}else if(!history.isEmpty()){previous();}else super.onBackPressed();}
-    @Override protected void onPause(){if(seriesScreen!=null)seriesScreen.setActive(false);if(heroCarousel!=null)heroCarousel.setActive(false);savePlayback(true);super.onPause();if(player!=null)player.pause();if(browser!=null)browser.onPause();}
-    @Override protected void onResume(){super.onResume();if(seriesScreen!=null)seriesScreen.setActive(true);if(updates!=null)updates.onResume();if(heroCarousel!=null)heroCarousel.setActive(true);if(browser!=null)browser.onResume();}
+    void backFromDiscover(){
+        View first=nav==null||nav.getChildCount()==0?null:nav.getChildAt(0);
+        boolean atStart=first!=null&&first.hasFocus()&&(discoverScroll==null||discoverScroll.getScrollY()==0);
+        if(!atStart){
+            discoverScrollY=0;focusItem="";
+            if(first!=null)first.requestFocus();
+            if(discoverScroll!=null)discoverScroll.scrollTo(0,0);
+            return;
+        }
+        new AlertDialog.Builder(this).setTitle("Vuoi uscire da NicoFlix?")
+            .setMessage("Puoi restare qui e continuare a guardare.")
+            .setNegativeButton("Resta",(dialog,which)->{if(first!=null)first.requestFocus();})
+            .setPositiveButton("Esci",(dialog,which)->finish()).show();
+    }
+    @Override public void onBackPressed(){if(screen.equals("search")){cancelSearch();section=searchBackSection;catalogTitle=searchBackTitle;items=searchBackItems;home();}else if(screen.equals("web")){if(automaticEpisode!=null){automaticEpisode=null;home();}else if(webCustomView!=null)closeWebFullscreen();else if(browser!=null&&browser.canGoBack())browser.goBack();else home();}else if(screen.equals("loading")){cancelJob();home();}else if(screen.equals("player")){if(selected!=null&&(selected.optBoolean("localBrowserSession")||selected.optString("addonId").equals("plugin.video.nikod.toonitalia")||selected.optString("addonId").equals("plugin.video.nikod.programfeed")))home();else details(selected);}else if(!screen.equals("home")){home();}else if(section.equals("Scopri")){backFromDiscover();}else if(!history.isEmpty()){previous();}else{section="Scopri";discoverScrollY=0;focusItem="";home();}}
+    @Override protected void onPause(){main.removeCallbacks(programHomeRefresh);if(seriesScreen!=null)seriesScreen.setActive(false);if(heroCarousel!=null)heroCarousel.setActive(false);savePlayback(true);super.onPause();if(player!=null)player.pause();if(browser!=null)browser.onPause();}
+    @Override protected void onResume(){super.onResume();main.removeCallbacks(programHomeRefresh);main.post(programHomeRefresh);if(seriesScreen!=null)seriesScreen.setActive(true);if(updates!=null)updates.onResume();if(heroCarousel!=null)heroCarousel.setActive(true);if(browser!=null)browser.onResume();}
     @Override protected void onDestroy(){if(seriesScreen!=null){seriesScreen.close();seriesScreen=null;}if(searchScreen!=null){searchScreen.close();searchScreen=null;}if(posterBadges!=null)posterBadges.close();if(updates!=null)updates.close();if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}savePlayback(true);alive=false;cancelJob();if(browser!=null){try{ServiceWorkerController.getInstance().setServiceWorkerClient(null);}catch(RuntimeException ignored){}browser.destroy();browser=null;}if(player!=null){player.release();player=null;}main.removeCallbacksAndMessages(null);worker.shutdown();artworkWorker.shutdownNow();artworkCache.evictAll();super.onDestroy();}
 }

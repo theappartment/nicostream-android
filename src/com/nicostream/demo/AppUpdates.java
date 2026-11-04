@@ -39,7 +39,7 @@ final class AppUpdates {
             });
         }catch(Exception e){main.post(()->{busy=false;dismissProgress();if(usable()&&!cancelled&&manual)message("Controllo non riuscito","Non riesco a raggiungere gli aggiornamenti GitHub. Riprova più tardi.");});}});
     }
-    void prompt(UpdateRelease update){new AlertDialog.Builder(activity).setTitle("Nuova versione "+update.versionName).setMessage("Versione installata: "+BuildConfig.VERSION_NAME+"\n\n"+(update.notes.isEmpty()?"È disponibile un aggiornamento di NicoStream.":update.notes)).setPositiveButton("Scarica e aggiorna",(d,w)->download(update)).setNegativeButton("Più tardi",null).show();}
+    void prompt(UpdateRelease update){new AlertDialog.Builder(activity).setTitle("Nuova versione "+update.versionName).setMessage("Versione installata: "+BuildConfig.VERSION_NAME+"\n\n"+(update.notes.isEmpty()?"È disponibile un aggiornamento di NicoFlix.":update.notes)).setPositiveButton("Scarica e aggiorna",(d,w)->download(update)).setNegativeButton("Più tardi",null).show();}
     void download(UpdateRelease update){
         if(busy||closed)return;busy=true;cancelled=false;showProgress("Download aggiornamento…",true);
         worker.execute(()->{File part=new File(activity.getCacheDir(),"updates/update.part");try{
@@ -65,7 +65,7 @@ final class AppUpdates {
     void requestInstall(){
         if(pendingApk==null||!pendingApk.isFile())return;
         if(!activity.getPackageManager().canRequestPackageInstalls()){
-            new AlertDialog.Builder(activity).setTitle("Autorizza aggiornamenti").setMessage("Android richiede di autorizzare NicoStream a installare i propri aggiornamenti. Poi tornerai all’app per confermare.").setPositiveButton("Apri impostazioni",(d,w)->{try{waitingPermission=true;activity.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+activity.getPackageName())));}catch(RuntimeException e){waitingPermission=false;message("Impostazione non disponibile","Autorizza NicoStream nelle impostazioni di sicurezza del dispositivo.");}}).setNegativeButton("Annulla",null).show();return;
+            new AlertDialog.Builder(activity).setTitle("Autorizza aggiornamenti").setMessage("Android richiede di autorizzare NicoFlix a installare i propri aggiornamenti. Poi tornerai all’app per confermare.").setPositiveButton("Apri impostazioni",(d,w)->{try{waitingPermission=true;activity.startActivity(new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+activity.getPackageName())));}catch(RuntimeException e){waitingPermission=false;message("Impostazione non disponibile","Autorizza NicoFlix nelle impostazioni di sicurezza del dispositivo.");}}).setNegativeButton("Annulla",null).show();return;
         }
         final File apk=pendingApk;final UpdateRelease update=available;
         new AlertDialog.Builder(activity).setTitle("Installa "+update.versionName).setMessage("Il download e la firma sono stati verificati. Android chiederà la conferma dell’aggiornamento; dati e preferenze vengono conservati.").setPositiveButton("Continua",(d,w)->install(apk,update)).setNegativeButton("Annulla",null).show();
