@@ -59,6 +59,7 @@ public class MainActivity extends Activity {
     final Handler main=new Handler(Looper.getMainLooper());
     TextView status,clock,pauseButton,sourceDomainStatus;
     ExoPlayer player;
+    SeriesScreen seriesScreen;
     SearchScreen searchScreen;
     boolean unifiedSearchBusy;
     String searchBackSection="Scopri",searchBackTitle="Stream4me",searchLastQuery="";
@@ -144,6 +145,7 @@ public class MainActivity extends Activity {
     void space(LinearLayout l,int h){l.addView(new View(this),new LinearLayout.LayoutParams(1,dp(h)));}
     TextView button(String label,Runnable action){TextView b=text(label,16,WHITE);b.setGravity(Gravity.CENTER);b.setPadding(dp(20),dp(13),dp(20),dp(13));b.setMinHeight(dp(46));b.setBackground(focus());b.setFocusable(true);b.setClickable(true);b.setOnClickListener(v->action.run());return b;}
     void base(){
+        seriesScreen=null;
         if(searchScreen!=null){searchScreen.close();searchScreen=null;if(unifiedSearchBusy){unifiedSearchBusy=false;cancelJob();}}
         revealKey=KeyEvent.KEYCODE_UNKNOWN;
         if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}
@@ -187,10 +189,9 @@ public class MainActivity extends Activity {
         boolean episodes=(nativeCatalog&&items.optJSONObject(0).optString("scAction").equals("episode"))||(!section.equals("Preferiti")&&toonEpisodes());
         boolean seasons=nativeCatalog&&items.optJSONObject(0).optString("scAction").equals("season");
         if(nativeCatalog){long id=items.optJSONObject(0).optLong("scTitleId");if(knownSeries.containsKey(id)){currentSeries=knownSeries.get(id);seriesSeasons=knownSeasons.get(id);}}
-        if(seasons&&currentSeries!=null)seriesBanner(currentSeries,false);
-        if(episodes&&!toonDirectory){
-            HorizontalScrollView selector=new HorizontalScrollView(this);selector.setHorizontalScrollBarEnabled(false);LinearLayout tabs=new LinearLayout(this);
-            for(int n=0;n<seriesSeasons.length();n++){JSONObject season=seriesSeasons.optJSONObject(n);if(season==null)continue;TextView tab=button(season.optString("title"),()->scCatalog(season));if(season.optInt("seasonNumber")==items.optJSONObject(0).optInt("seasonNumber"))tab.setTextColor(MINT);LinearLayout.LayoutParams tp=new LinearLayout.LayoutParams(-2,-2);tp.setMargins(0,0,dp(8),0);tabs.addView(tab,tp);}selector.addView(tabs);body.addView(selector);space(body,12);
+        if(nativeCatalog&&(seasons||episodes)&&currentSeries!=null){root.removeView(scroll);seriesScreen=new SeriesScreen(this,currentSeries,seriesSeasons,items,episodes);root.addView(seriesScreen.view,new LinearLayout.LayoutParams(-1,0,1));return;}
+        if(toonDirectory&&episodes){
+            try{JSONObject representative=null;for(int n=0;n<items.length();n++)if(items.optJSONObject(n)!=null&&items.optJSONObject(n).optBoolean("isPlayable")){representative=new JSONObject(items.getJSONObject(n).toString());break;}if(representative!=null){String name=representative.optString("seriesTitle");representative.put("title",name.isEmpty()?catalogTitle:name);representative.remove("description");root.removeView(scroll);seriesScreen=new SeriesScreen(this,representative,new JSONArray(),items,true);root.addView(seriesScreen.view,new LinearLayout.LayoutParams(-1,0,1));return;}}catch(Exception ignored){}
         }
         if(!seasons)body.addView(text(section.equals("Cerca")?"Risultati da tutti gli addon · La sorgente è indicata su ogni scheda":toonDirectory?"ToonItalia · OK per aprire · Tieni premuto OK per sorgenti e preferiti":nativeCatalog?episodes?"Scegli una puntata · OK per guardare":"StreamingCommunity":section.equals("Preferiti")?"I titoli che hai salvato":"Esplora il catalogo",12,MUTED));space(body,10);
         // Wrap rows on TV, allowing vertical navigation through large catalogues.
@@ -431,7 +432,7 @@ public class MainActivity extends Activity {
     }
     void focusCard(View view,JSONObject item){
         view.setBackground(focus());view.setFocusable(true);view.setClickable(true);view.setContentDescription(item.optString("title"));view.setOnClickListener(v->openItem(item));view.setTag(item);view.setOnLongClickListener(v->{if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")){toonActions(item);return true;}return false;});
-        view.setOnFocusChangeListener((v,on)->{float scale=on&&!item.optString("scAction").equals("episode")?1.025f:1f;v.animate().scaleX(scale).scaleY(scale).setDuration(120).start();if(on)focusItem=item.optString("id");});
+        view.setOnFocusChangeListener((v,on)->{boolean episode=item.optString("scAction").equals("episode")||item.optString("addonId").contains("toonitalia")&&item.optBoolean("isPlayable");boolean wide=episode||item.optString("scAction").equals("season");float scale=on&&!wide?1.025f:1f;v.animate().scaleX(scale).scaleY(scale).setDuration(120).start();if(on)focusItem=item.optString("id");});
         if(screen.equals("home")&&!section.equals("Scopri")&&item.optString("id").equals(focusItem))view.post(()->{if(view.isAttachedToWindow())view.requestFocus();});
     }
     android.graphics.drawable.Drawable badgePlaceholder(String name){
@@ -465,17 +466,21 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(width),-2);p.setMargins(0,0,dp(12),dp(12));c.setLayoutParams(p);return c;
     }
     View episodeRow(JSONObject item){
-        LinearLayout row=new LinearLayout(this);row.setClipChildren(false);row.setClipToPadding(false);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(10),dp(10),dp(16),dp(10));focusCard(row,item);
-        row.addView(artwork(item.optString("thumb"),150,84));LinearLayout copy=col();copy.setPadding(dp(18),0,dp(16),0);row.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
-        copy.addView(title((item.optInt("episodeNumber")>0?String.format(Locale.ROOT,"%02d",item.optInt("episodeNumber"))+"   ":"")+item.optString("episodeName",item.optString("title")),18));TextView plot=text(item.optString("description"),13,MUTED);plot.setMaxLines(2);plot.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(plot);long resume=resumePosition(item);copy.addView(text(item.optString("tag")+(resume>0?" · Riprendi da "+time(resume):""),11,MINT));row.addView(text("▶",22,WHITE));
-        LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.setMargins(0,0,0,dp(10));row.setLayoutParams(p);return row;
+        JSONObject history=PlaybackHistory.find(playbackHistory(),item);boolean completed=history!=null&&history.optBoolean("completed");long resume=resumePosition(item),duration=history==null?0:history.optLong("duration");
+        LinearLayout row=new LinearLayout(this);row.setClipChildren(false);row.setClipToPadding(false);row.setGravity(Gravity.CENTER_VERTICAL);row.setPadding(dp(12),dp(12),dp(18),dp(12));focusCard(row,item);
+        int number=item.optInt("episodeNumber");String name=item.optString("episodeName",item.optString("title"));row.setContentDescription((number>0?"Episodio "+number+": ":"")+name+(completed?" · Guardato":resume>0?" · Riprendi da "+time(resume):""));
+        TextView index=title(number>0?String.format(Locale.ROOT,"%02d",number):"▶",24);index.setTextColor(completed?MINT:MUTED);index.setGravity(Gravity.CENTER);row.addView(index,new LinearLayout.LayoutParams(dp(42),-1));
+        FrameLayout preview=new FrameLayout(this);preview.setBackground(bg(PANEL,8));preview.setClipToOutline(true);String image=item.optString("thumb");if(image.isEmpty())image=item.optString("art");preview.addView(artwork(image,176,99),new FrameLayout.LayoutParams(-1,-1));
+        TextView play=text(completed?"✓":"▶",16,WHITE);play.setGravity(Gravity.CENTER);play.setBackground(bg(Color.argb(145,0,0,0),18));preview.addView(play,new FrameLayout.LayoutParams(dp(36),dp(36),Gravity.CENTER));
+        if(completed||resume>0){View track=new View(this);track.setBackgroundColor(Color.argb(100,255,255,255));preview.addView(track,new FrameLayout.LayoutParams(-1,dp(3),Gravity.BOTTOM));float ratio=completed?1f:duration>0?Math.min(1f,(float)resume/duration):0;View progress=new View(this);progress.setBackgroundColor(MINT);preview.addView(progress,new FrameLayout.LayoutParams(Math.round(dp(176)*ratio),dp(3),Gravity.BOTTOM));}
+        row.addView(preview,new LinearLayout.LayoutParams(dp(176),dp(99)));LinearLayout copy=col();copy.setPadding(dp(20),0,dp(18),0);row.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
+        TextView title=title(name,18);title.setMaxLines(1);title.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(title);TextView plot=text(item.optString("description"),12,MUTED);plot.setLines(2);plot.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(plot);space(copy,4);
+        String tag=item.optString("tag");if(tag.equals("0 MIN"))tag="";String status=completed?"✓ Guardato":resume>0?"Riprendi da "+time(resume):"Da guardare";copy.addView(text((tag.isEmpty()?"":tag+"  ·  ")+status,11,completed||resume>0?MINT:MUTED));row.addView(text("›",24,MUTED));
+        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-1,dp(127));params.setMargins(0,dp(4),0,dp(10));row.setLayoutParams(params);return row;
     }
-    void seriesBanner(JSONObject item,boolean shortcut){
-        LinearLayout panel=new LinearLayout(this);panel.setPadding(dp(18),dp(18),dp(18),dp(18));panel.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{Color.rgb(25,45,53),BG}));
-        panel.addView(artwork(item.optString("art"),shortcut?112:96,shortcut?165:142));LinearLayout copy=col();copy.setPadding(dp(24),0,0,0);panel.addView(copy,new LinearLayout.LayoutParams(0,-2,1));copy.addView(text(shortcut?"ESPLORATO DI RECENTE":"SERIE TV · "+item.optString("year"),11,MINT));copy.addView(title(item.optString("title"),32));TextView plot=text(item.optString("description"),14,MUTED);plot.setMaxLines(shortcut?3:2);plot.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(plot);space(copy,10);
-        LinearLayout actions=new LinearLayout(this);copy.addView(actions);if(shortcut)actions.addView(button("Scegli una puntata",()->scCatalog(item)));else for(int n=0;n<seriesSeasons.length();n++){JSONObject season=seriesSeasons.optJSONObject(n);if(season==null)continue;TextView tab=button(season.optString("title"),()->scCatalog(season));LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(-2,-2);sp.setMargins(0,0,dp(8),0);actions.addView(tab,sp);}
-        TextView favorite=button(isFavorite(item)?"✓ Nei preferiti":"＋ Preferiti",()->{toggleFavorite(item);home();});LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-2,-2);fp.setMargins(dp(10),0,0,0);actions.addView(favorite,fp);
-        body.addView(panel);space(body,16);
+    JSONObject continuingSeries(JSONObject series){
+        long id=series.optLong("scTitleId");String group=id>0?"sc:"+id:series.optString("addonId").contains("toonitalia")&&!series.optString("seriesKey").isEmpty()?"toon:"+series.optString("seriesKey"):"";
+        JSONArray records=PlaybackHistory.continuing(playbackHistory());for(int n=0;n<records.length();n++){JSONObject record=records.optJSONObject(n),source=record==null?null:record.optJSONObject("source");if(source!=null&&!group.isEmpty()&&PlaybackHistory.group(source).equals(group)&&record.optLong("position")>0)return record;}return null;
     }
     JSONArray favorites(){try{return new JSONArray(prefs.getString("favorites","[]"));}catch(Exception e){return new JSONArray();}}
     boolean isFavorite(JSONObject item){if(item.optBoolean("localBrowserSession")&&currentSeries!=null)item=currentSeries;JSONArray saved=favorites();for(int i=0;i<saved.length();i++)if(saved.optJSONObject(i).optString("id").equals(item.optString("id")))return true;return false;}
@@ -617,7 +622,7 @@ public class MainActivity extends Activity {
                         if(following!=null)try{next=PlaybackHistory.next(prepared,StreamingCommunityCatalog.episodes(scPage(following.getString("url"),ua),origin));}catch(Exception ignored){android.util.Log.i("NicoStreamPlayback","SC_NEXT_UNAVAILABLE");}
                     }
                     if(next!=null)prepared.put("nextEpisode",next);
-                    JSONObject series=StreamingCommunityCatalog.decorate(StreamingCommunityCatalog.entry(title.getString("name"),titleUrl,"title"),seasonProps.getJSONObject("title"),seasonProps);
+                    JSONObject series=StreamingCommunityCatalog.decorate(StreamingCommunityCatalog.entry(title.getString("name"),titleUrl,"title").put("scTitleId",title.getLong("id")),seasonProps.getJSONObject("title"),seasonProps);
                     final JSONObject resolved=prepared;
                     runOnUiThread(()->{if(!alive||generation!=request)return;
                         boolean same=items.length()>0&&items.optJSONObject(0)!=null&&items.optJSONObject(0).optLong("scTitleId")==resolved.optLong("scTitleId")&&items.optJSONObject(0).optInt("seasonNumber")==season&&items.optJSONObject(0).optString("scAction").equals("episode");
@@ -626,15 +631,25 @@ public class MainActivity extends Activity {
                         openSourcePage(resolved,true);
                     });return;
                 }
-                JSONArray list;
+                JSONArray list;JSONObject readyProps=props;String readyOrigin=origin;JSONArray availableSeasons=null;
                 if(isScSearch(item))list=StreamingCommunityCatalog.search(props,origin,uri.getQueryParameter("q")==null?"":uri.getQueryParameter("q"));
                 else if(action.equals("collection"))list=StreamingCommunityCatalog.titles(props,origin);
-                else if(action.equals("season"))list=StreamingCommunityCatalog.episodes(props,origin);
-                else if(props.getJSONObject("title").optString("type").equals("movie")){
+                else if(action.equals("season")){
+                    SeriesNavigation.verifySeason(props,item.optLong("scTitleId"),item.optInt("seasonNumber"));list=StreamingCommunityCatalog.episodes(props,origin);availableSeasons=StreamingCommunityCatalog.seasons(props,origin);
+                }else if(props.getJSONObject("title").optString("type").equals("movie")){
                     JSONObject movie=new JSONObject(item.toString()).put("scAction","movie").put("url",origin+"/it/watch/"+props.getJSONObject("title").getLong("id"));
                     runOnUiThread(()->{if(alive&&generation==request)openSourcePage(movie,true);});return;
-                }else list=StreamingCommunityCatalog.seasons(props,origin);
-                runOnUiThread(()->{if(!alive||generation!=request)return;if(action.equals("title")){try{currentSeries=StreamingCommunityCatalog.decorate(currentSource(item),props.getJSONObject("title"),props);seriesSeasons=list;long seriesId=props.getJSONObject("title").getLong("id");knownSeries.put(seriesId,currentSeries);knownSeasons.put(seriesId,list);prefs.edit().putString("scLastTitle",safeMetadata(currentSeries)).apply();}catch(Exception ignored){}}if(!replaceSeason){pushHistory();}focusItem="";items=list;catalogTitle=isScSearch(item)?item.optString("title","StreamingCommunity"):action.equals("season")&&currentSeries!=null?currentSeries.optString("title")+" · "+item.optString("title"):item.optString("title");section="Catalogo";home();});
+                }else{
+                    availableSeasons=StreamingCommunityCatalog.seasons(props,origin);JSONObject initial=SeriesNavigation.initialSeason(availableSeasons,playbackHistory(),props.getJSONObject("title").getLong("id"));
+                    if(initial!=null){JSONObject loaded=props.optJSONObject("loadedSeason");readyProps=loaded!=null&&loaded.optInt("number")==initial.optInt("seasonNumber")&&loaded.optJSONArray("episodes")!=null?props:scPage(initial.getString("url"),ua);readyOrigin=readyProps.optString("_sourceOrigin",origin);SeriesNavigation.verifySeason(readyProps,props.getJSONObject("title").getLong("id"),initial.optInt("seasonNumber"));list=StreamingCommunityCatalog.episodes(readyProps,readyOrigin);}else list=availableSeasons;
+                }
+                if(list.length()==0&&availableSeasons!=null&&availableSeasons.length()>0){JSONObject title=readyProps.getJSONObject("title");list.put(new JSONObject().put("title","Nessun episodio disponibile per questa stagione").put("description","Puoi scegliere un’altra stagione dal filtro sopra l’elenco.").put("isNotice",true).put("scAction","episode").put("scTitleId",title.getLong("id")).put("seasonNumber",readyProps.optJSONObject("loadedSeason")==null?0:readyProps.getJSONObject("loadedSeason").optInt("number")));}
+                final JSONObject content=readyProps;final String contentOrigin=readyOrigin;final JSONArray directory=list,seasonOptions=availableSeasons;
+                runOnUiThread(()->{
+                    if(!alive||generation!=request)return;
+                    if(seasonOptions!=null){try{currentSeries=StreamingCommunityCatalog.titleEntry(content.getJSONObject("title"),content,contentOrigin);seriesSeasons=seasonOptions;long seriesId=currentSeries.getLong("scTitleId");knownSeries.put(seriesId,currentSeries);knownSeasons.put(seriesId,seriesSeasons);prefs.edit().putString("scLastTitle",safeMetadata(currentSeries)).apply();}catch(Exception ignored){}}
+                    if(!replaceSeason)pushHistory();focusItem="";items=directory;catalogTitle=seasonOptions!=null&&currentSeries!=null?currentSeries.optString("title"):item.optString("title");section="Catalogo";home();
+                });
             }catch(Exception e){runOnUiThread(()->{if(!alive||generation!=request)return;home();new AlertDialog.Builder(this).setTitle("Catalogo non disponibile").setMessage(e.getMessage()).setPositiveButton("Apri pagina",(d,w)->openSourcePage(item)).setNegativeButton("Chiudi",null).show();});}
         });
     }
@@ -837,7 +852,10 @@ public class MainActivity extends Activity {
             if(searchScreen!=null&&searchScreen.move(getCurrentFocus(),e.getKeyCode()))return true;
             if(searchScreen!=null&&searchScreen.hasFocusWithin(nav)&&tvFocus.move(root,getCurrentFocus(),e.getKeyCode()))return true;
         }
-        if(screen.equals("home")&&e.getAction()==KeyEvent.ACTION_DOWN&&getWindow().getDecorView().hasWindowFocus()&&tvFocus.move(root,getCurrentFocus(),e.getKeyCode()))return true;
+        if(screen.equals("home")&&seriesScreen!=null&&e.getAction()==KeyEvent.ACTION_DOWN&&getWindow().getDecorView().hasWindowFocus()){
+            if(seriesScreen.move(getCurrentFocus(),e.getKeyCode()))return true;
+            if(seriesScreen.within(nav,getCurrentFocus())&&tvFocus.move(root,getCurrentFocus(),e.getKeyCode()))return true;
+        }else if(screen.equals("home")&&e.getAction()==KeyEvent.ACTION_DOWN&&getWindow().getDecorView().hasWindowFocus()&&tvFocus.move(root,getCurrentFocus(),e.getKeyCode()))return true;
         if(screen.equals("home")&&e.getAction()==KeyEvent.ACTION_DOWN&&e.getKeyCode()==KeyEvent.KEYCODE_MENU){View focused=getCurrentFocus();if(focused!=null&&focused.getTag() instanceof JSONObject){JSONObject item=(JSONObject)focused.getTag();if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")){toonActions(item);return true;}}}
         if(screen.equals("player")&&player!=null){
             int key=e.getKeyCode();

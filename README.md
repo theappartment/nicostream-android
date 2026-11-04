@@ -14,6 +14,8 @@ La chiave privata di firma non è contenuta in questo repository. `official-sign
 
 ## Uso
 
+- **Serie TV:** scheda a due colonne ispirata a iPad, episodi subito visibili con anteprime e avanzamento. Il filtro sopra la lista cambia stagione; all’apertura viene scelta quella da riprendere o la prima disponibile.
+
 - Android 8 / API 26 o successivi. Touch e telecomando supportati.
 - La demo locale include due film aperti della Blender Foundation; non richiede un server.
 - Per i cataloghi degli addon serve un motore VPS compatibile: il server ufficiale `https://nicostream.theappartment.it` è già configurato e non è modificabile dall’interfaccia. Un nuovo dispositivo va autorizzato una sola volta con la chiave privata; poi il collegamento è automatico a ogni apertura. Il server e le credenziali personali non sono inclusi nell’APK.

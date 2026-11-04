@@ -1,6 +1,7 @@
-Comandi della hero più leggeri.
+Schede delle serie ispirate al layout iPad.
 
-- Frecce sottili senza i grandi riquadri di sfondo.
-- Contatore più piccolo e discreto.
-- Evidenziazione circolare leggera solo quando selezionati con il telecomando.
-- Area di selezione mantenuta comoda per navigare.
+- Due colonne: copertina e informazioni a sinistra, stagioni o episodi a destra.
+- Episodi già visibili all’apertura della serie, con anteprima, codice e pulsante di riproduzione.
+- Filtro della stagione sopra la lista degli episodi; apertura sulla stagione da riprendere o sulla prima disponibile.
+- Punto di ripresa, barra di avanzamento e stato Guardato visibili.
+- Navigazione con telecomando tra le due colonne e ritorno al catalogo mantenuti.

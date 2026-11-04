@@ -99,7 +99,7 @@ final class StreamingCommunityCatalog {
         JSONObject t=props.getJSONObject("title");JSONArray all=t.getJSONArray("seasons"),out=new JSONArray();
         for(int i=0;i<all.length();i++){
             JSONObject s=all.getJSONObject(i);int number=s.getInt("number");
-            out.put(decorate(entry("Stagione "+number,origin+"/it/titles/"+t.getLong("id")+"-"+t.getString("slug")+"/season-"+number,"season").put("tag",s.optInt("episodes_count")+" EPISODI").put("seasonNumber",number).put("scTitleId",t.getLong("id")),t,props));
+            out.put(decorate(entry("Stagione "+number,origin+"/it/titles/"+t.getLong("id")+"-"+t.getString("slug")+"/season-"+number,"season").put("tag",s.optInt("episodes_count")+" EPISODI").put("seasonNumber",number).put("episodeCount",s.optInt("episodes_count")).put("scTitleId",t.getLong("id")),t,props));
         }
         return out;
     }
