@@ -97,11 +97,11 @@ final class SearchScreen {
             List<View> row=leftRows.get(r);int column=row.indexOf(focused);if(column<0)continue;lastLeft=focused;
             if(horizontal){if(focused==input){if(key==KeyEvent.KEYCODE_DPAD_LEFT&&input.getSelectionStart()>0||key==KeyEvent.KEYCODE_DPAD_RIGHT&&input.getSelectionEnd()<input.length())return false;}
                 int next=column+(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1);if(next>=0&&next<row.size())return focus(row.get(next));if(key==KeyEvent.KEYCODE_DPAD_RIGHT&&!rightRows.isEmpty())return focus(lastRight!=null&&lastRight.isAttachedToWindow()?lastRight:rightRows.get(0).get(0));return true;}
-            int next=r+(key==KeyEvent.KEYCODE_DPAD_DOWN?1:-1);if(next<0)return focus(app.nav.getChildAt(1));if(next>=leftRows.size())return true;return focus(leftRows.get(next).get(Math.min(column,leftRows.get(next).size()-1)));
+            int next=r+(key==KeyEvent.KEYCODE_DPAD_DOWN?1:-1);if(next<0)return focus(app.nav.getChildAt(0));if(next>=leftRows.size())return true;return focus(leftRows.get(next).get(Math.min(column,leftRows.get(next).size()-1)));
         }
         for(int r=0;r<rightRows.size();r++){List<View> row=rightRows.get(r);int column=row.indexOf(focused);if(column<0)continue;lastRight=focused;
             if(horizontal){int next=column+(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1);if(next<0)return focus(lastLeft!=null&&lastLeft.isAttachedToWindow()?lastLeft:input);if(next>=row.size())return true;return focus(row.get(next));}
-            int next=r+(key==KeyEvent.KEYCODE_DPAD_DOWN?1:-1);if(next<0)return focus(app.nav.getChildAt(1));if(next>=rightRows.size())return true;return focus(rightRows.get(next).get(Math.min(column,rightRows.get(next).size()-1)));
+            int next=r+(key==KeyEvent.KEYCODE_DPAD_DOWN?1:-1);if(next<0)return focus(app.nav.getChildAt(0));if(next>=rightRows.size())return true;return focus(rightRows.get(next).get(Math.min(column,rightRows.get(next).size()-1)));
         }return false;
     }
     void close(){closed=true;revision++;main.removeCallbacksAndMessages(null);hideKeyboard();app.getWindow().setSoftInputMode(previousSoftInputMode);}

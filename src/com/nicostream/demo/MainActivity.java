@@ -162,13 +162,13 @@ public class MainActivity extends Activity {
     }
     void addNavigation(String activeSection){
         HorizontalScrollView menu=new HorizontalScrollView(this);menu.setHorizontalScrollBarEnabled(false);nav=new LinearLayout(this);
-        for(String s:new String[]{"Scopri","Cerca","Catalogo","Preferiti","Impostazioni"}){
-            TextView b=button(s,()->{if(s.equals("Impostazioni")){settings();return;}if(s.equals("Cerca")){searchCatalog();return;}if(s.equals("Scopri")){discoverScrollY=0;history.clear();titles.clear();historySections.clear();items=addonRoot;catalogTitle="Stream4me";section=s;focusItem="";home();return;}if(s.equals("Catalogo")){showAddons();return;}section=s;focusItem="";home();});
+        for(String s:new String[]{"Cerca","Scopri","Preferiti","Impostazioni"}){
+            TextView b=button(s.equals("Scopri")?"Home":s,()->{if(s.equals("Impostazioni")){settings();return;}if(s.equals("Cerca")){searchCatalog();return;}if(s.equals("Scopri")){discoverScrollY=0;history.clear();titles.clear();historySections.clear();items=addonRoot;catalogTitle="Stream4me";section=s;focusItem="";home();return;}if(s.equals("Catalogo")){showAddons();return;}section=s;focusItem="";home();});
             b.setTextSize(14);b.setTextColor(activeSection.equals(s)?WHITE:MUTED);b.setPadding(dp(14),dp(7),dp(14),dp(5));b.setMinHeight(dp(40));
             b.setBackground(focus(Color.TRANSPARENT));
             int iconId=s.equals("Scopri")?R.drawable.ic_nav_discover:s.equals("Cerca")?R.drawable.ic_nav_search:s.equals("Catalogo")?R.drawable.ic_nav_catalog:s.equals("Preferiti")?R.drawable.ic_nav_favorites:R.drawable.ic_nav_settings;
             android.graphics.drawable.Drawable icon=getDrawable(iconId).mutate();icon.setTint(activeSection.equals(s)?WHITE:MUTED);
-            GradientDrawable underline=bg(activeSection.equals(s)?MINT:Color.TRANSPARENT,1);underline.setSize(dp(20),dp(2));b.setCompoundDrawablePadding(dp(7));b.setCompoundDrawablesWithIntrinsicBounds(icon,null,null,underline);b.setContentDescription(s);
+            GradientDrawable underline=bg(activeSection.equals(s)?MINT:Color.TRANSPARENT,1);underline.setSize(dp(20),dp(2));b.setCompoundDrawablePadding(dp(7));b.setCompoundDrawablesWithIntrinsicBounds(icon,null,null,underline);b.setContentDescription(s.equals("Scopri")?"Home":s);
             LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,dp(42));p.setMargins(0,0,dp(6),0);nav.addView(b,p);
         }
         menu.addView(nav);root.addView(menu);space(root,8);
@@ -181,7 +181,7 @@ public class MainActivity extends Activity {
         ScrollView scroll=new CenteredScrollView(this);body=col();scroll.addView(body);root.addView(scroll,new LinearLayout.LayoutParams(-1,0,1));
         if(section.equals("Scopri")){
             discoverBody=body;discoverScroll=scroll;renderDiscover();loadDiscover(false);refreshSourceIndex(false,null);loadProgramHome(false);if(updates!=null)updates.maybeCheck();scroll.post(()->scroll.scrollTo(0,discoverScrollY));
-            root.post(()->{if(root.findFocus()==null)nav.getChildAt(0).requestFocus();});return;
+            root.post(()->{if(root.findFocus()==null)nav.getChildAt(1).requestFocus();});return;
         }
         if(section.equals("Cerca")){String query=prefs.getString("lastSearchQuery","");if(!query.isEmpty()){body.addView(button("⌕ "+query+" · Modifica ricerca",()->searchCatalog(query)),new LinearLayout.LayoutParams(-2,-2));space(body,12);}}
         LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
@@ -220,7 +220,7 @@ public class MainActivity extends Activity {
         }
         if(count==0)body.addView(text(section.equals("Preferiti")?"Nessun preferito. Aggiungi un contenuto dalla sua scheda.":"Nessun titolo trovato. Prova con un’altra ricerca.",16,MUTED));
         space(body,18);body.addView(text("Frecce per navigare · OK per scegliere · Indietro per tornare",11,MUTED));
-        root.post(()->{if(root.findFocus()==null)nav.getChildAt(section.equals("Cerca")?1:section.equals("Catalogo")?2:section.equals("Preferiti")?3:0).requestFocus();});
+        root.post(()->{if(root.findFocus()==null)nav.getChildAt(section.equals("Cerca")?0:section.equals("Catalogo")?3:section.equals("Preferiti")?2:1).requestFocus();});
     }
     String safeMetadata(JSONObject item){try{return StreamingCommunityCatalog.publicMetadata(item).toString();}catch(Exception e){return "{}";}}
     void refreshSourceIndex(boolean force,Runnable after){
@@ -270,8 +270,8 @@ public class MainActivity extends Activity {
         String origin=providerOrigin();if(sourceIndexLoading||server().isEmpty()||origin.isEmpty()||discoverLoading||(!force&&discoverFeed!=null&&discoverFeed.optJSONArray("rails")!=null&&System.currentTimeMillis()-discoverUpdated<600000))return;
         discoverLoading=true;discoverError="";final String ua=WebSettings.getDefaultUserAgent(this);
         worker.execute(()->{try{JSONObject page=scPage(origin+"/it",ua);JSONObject feed=StreamingCommunityCatalog.home(page,page.optString("_sourceOrigin",origin));if(feed.getJSONArray("rails").length()==0)throw new IOException("Nessuna raccolta disponibile");
-            main.post(()->{if(!alive)return;discoverLoading=false;if(!origin.equals(providerOrigin())){if(screen.equals("home")&&section.equals("Scopri"))loadDiscover(true);return;}discoverFeed=feed;discoverUpdated=System.currentTimeMillis();prefs.edit().putString("discoverFeed",safeMetadata(feed)).putInt("discoverVersion",1).putLong("discoverUpdated",discoverUpdated).apply();if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body){boolean browsing=body.hasFocus();if(!browsing||force){renderDiscover();if(force)nav.getChildAt(0).requestFocus();}else{TextView update=button("Nuovi titoli disponibili · Aggiorna",()->{focusItem="";home();});body.addView(update,0);}}enrichHero(feed);});
-        }catch(Exception e){main.post(()->{if(!alive)return;discoverLoading=false;if(!origin.equals(providerOrigin())){if(screen.equals("home")&&section.equals("Scopri"))loadDiscover(true);return;}discoverError="Non riesco ad aggiornare i titoli. Puoi riprovare o usare Cerca.";if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body&&(!body.hasFocus()||force)){renderDiscover();if(force)nav.getChildAt(0).requestFocus();}});}});
+            main.post(()->{if(!alive)return;discoverLoading=false;if(!origin.equals(providerOrigin())){if(screen.equals("home")&&section.equals("Scopri"))loadDiscover(true);return;}discoverFeed=feed;discoverUpdated=System.currentTimeMillis();prefs.edit().putString("discoverFeed",safeMetadata(feed)).putInt("discoverVersion",1).putLong("discoverUpdated",discoverUpdated).apply();if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body){boolean browsing=body.hasFocus();if(!browsing||force){renderDiscover();if(force)nav.getChildAt(1).requestFocus();}else{TextView update=button("Nuovi titoli disponibili · Aggiorna",()->{focusItem="";home();});body.addView(update,0);}}enrichHero(feed);});
+        }catch(Exception e){main.post(()->{if(!alive)return;discoverLoading=false;if(!origin.equals(providerOrigin())){if(screen.equals("home")&&section.equals("Scopri"))loadDiscover(true);return;}discoverError="Non riesco ad aggiornare i titoli. Puoi riprovare o usare Cerca.";if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body&&(!body.hasFocus()||force)){renderDiscover();if(force)nav.getChildAt(1).requestFocus();}});}});
     }
     void enrichHero(JSONObject feed){
         final long revision=++heroEnrichmentGeneration;final String origin=providerOrigin(),ua=WebSettings.getDefaultUserAgent(this);final JSONArray titles=HeroSelection.topTen(feed);
@@ -345,11 +345,13 @@ public class MainActivity extends Activity {
         arrow.setBackground(focus(Color.TRANSPARENT));
         arrow.setImageTintList(new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_focused},new int[]{android.R.attr.state_pressed},new int[]{}},new int[]{MINT,MINT,MUTED}));return arrow;
     }
+    boolean homeTrailerAudio=false;
     void discoverHero(JSONObject item){
         FrameLayout outer=new FrameLayout(this),stage=new FrameLayout(this);outer.setTag("tv-focus-anchor");outer.setClipChildren(false);outer.addView(stage,new FrameLayout.LayoutParams(-1,-1));
         LinearLayout pager=new LinearLayout(this);pager.setGravity(Gravity.CENTER_VERTICAL);ImageButton previous=carouselArrow(false),next=carouselArrow(true);TextView counter=text("",11,MUTED);previous.setContentDescription("Titolo precedente");next.setContentDescription("Titolo successivo");counter.setGravity(Gravity.CENTER);counter.setLetterSpacing(.04f);counter.setAlpha(.8f);pager.addView(previous,new LinearLayout.LayoutParams(dp(44),dp(44)));pager.addView(counter,new LinearLayout.LayoutParams(dp(44),-2));pager.addView(next,new LinearLayout.LayoutParams(dp(44),dp(44)));
+        ImageButton sound=carouselArrow(true);sound.setImageResource(homeTrailerAudio?R.drawable.ic_audio_on:R.drawable.ic_audio_off);sound.setContentDescription(homeTrailerAudio?"Disattiva audio trailer":"Attiva audio trailer");sound.setOnClickListener(v->{homeTrailerAudio=!homeTrailerAudio;sound.setImageResource(homeTrailerAudio?R.drawable.ic_audio_on:R.drawable.ic_audio_off);sound.setContentDescription(homeTrailerAudio?"Disattiva audio trailer":"Attiva audio trailer");if(heroCarousel!=null)heroCarousel.setAudioEnabled(homeTrailerAudio);});LinearLayout.LayoutParams soundParams=new LinearLayout.LayoutParams(dp(44),dp(44));soundParams.leftMargin=dp(14);pager.addView(sound,soundParams);
         FrameLayout.LayoutParams pagerParams=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.RIGHT);pagerParams.rightMargin=dp(28);pagerParams.bottomMargin=dp(12);outer.addView(pager,pagerParams);
-        body.addView(outer,new LinearLayout.LayoutParams(-1,dp(440)));space(body,24);heroCarousel=new HeroCarousel(stage,this::buildHeroSlide,counter,previous,next);JSONArray candidates=HeroSelection.candidates(discoverFeed);if(candidates.length()==0)candidates.put(item);heroCarousel.update(candidates);
+        body.addView(outer,new LinearLayout.LayoutParams(-1,dp(440)));space(body,24);heroCarousel=new HeroCarousel(stage,this::buildHeroSlide,counter,previous,next);JSONArray candidates=HeroSelection.candidates(discoverFeed);if(candidates.length()==0)candidates.put(item);heroCarousel.setAudioEnabled(homeTrailerAudio);heroCarousel.update(candidates);
     }
     HeroCarousel.Slide buildHeroSlide(JSONObject item,boolean preload,boolean immediate){
         HeroPreview previewPlayer=null;
@@ -994,7 +996,10 @@ public class MainActivity extends Activity {
         if(root!=null&&root.getChildCount()>0)root.getChildAt(0).setVisibility(View.VISIBLE);
     }
     void settings(){
-        screen="settings";base();ScrollView scroll=new ScrollView(this);LinearLayout content=col();scroll.addView(content);root.addView(scroll);
+        screen="settings";base();addNavigation("Impostazioni");ScrollView scroll=new ScrollView(this);LinearLayout content=col();scroll.addView(content);root.addView(scroll);
+        content.addView(title("Contenuti e home",26));
+        content.addView(button("Catalogo e addon",this::showAddons));space(content,10);
+        content.addView(button("Aggiorna la home",()->{section="Scopri";home();refreshSourceIndex(true,()->loadDiscover(true));loadProgramHome(true);}));space(content,24);
         content.addView(title("Aggiornamenti",26));content.addView(text("Versione "+BuildConfig.VERSION_NAME,15,MUTED));
         content.addView(button("Controlla aggiornamenti",()->updates.check(true)),new LinearLayout.LayoutParams(-2,-2));content.addView(text("Le nuove versioni arrivano da GitHub. Il controllo automatico avviene una volta al giorno.",13,MUTED));space(content,24);
         content.addView(title("Domini delle sorgenti",24));content.addView(text("L’indice Stream4me viene aggiornato automaticamente. Se non è disponibile, viene mantenuta l’ultima copia valida.",14,MUTED));
@@ -1004,9 +1009,8 @@ public class MainActivity extends Activity {
         content.addView(text(EngineAccess.SERVER,16,MINT));space(content,12);
         boolean authorized=!prefs.getString("serverKey","").isEmpty();
         content.addView(text(authorized?"Accesso salvato su questo dispositivo.":"Autorizza questo dispositivo una sola volta con la tua chiave di accesso.",15,MUTED));space(content,12);
-        if(authorized){content.addView(button("Aggiorna la home",()->{section="Scopri";home();refreshSourceIndex(true,()->loadDiscover(true));loadProgramHome(true);}));space(content,12);}
         content.addView(button(authorized?"Modifica chiave di accesso":"Autorizza dispositivo",this::editEngineAccess));space(content,12);
-        if(authorized)content.addView(button("‹ Torna al catalogo",this::home));
+        content.addView(button("‹ Torna alla home",()->{section="Scopri";home();}));
     }
     void editEngineAccess(){
         EditText key=new EditText(this);key.setSingleLine(true);key.setInputType(129);key.setSaveEnabled(false);key.setHint("Chiave privata NicoFlix");key.setText(prefs.getString("serverKey",""));

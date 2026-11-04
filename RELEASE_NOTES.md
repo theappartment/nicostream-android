@@ -1,5 +1,6 @@
-Header più leggibile.
+Header e audio della home.
 
-- Icone sottili accanto alle voci del menu.
-- Sezione attiva indicata con una piccola linea verde menta.
-- Stesso header compatto, con testi e navigazione da telecomando.
+- Cerca, Home, Preferiti e Impostazioni con icone sottili.
+- Catalogo e addon nelle Impostazioni riordinate.
+- Pulsante audio nella hero: la scelta si mantiene passando al trailer successivo.
+- Le anteprime si fermano scendendo sotto la hero o cambiando pagina.

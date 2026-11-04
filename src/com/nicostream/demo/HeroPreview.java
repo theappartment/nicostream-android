@@ -17,12 +17,13 @@ import java.util.concurrent.ExecutorService;
 final class HeroPreview {
     final Context context;final View hero;final TextureView surface;final ExecutorService executor;final String embed,referer,ua;
     final Handler handler=new Handler(Looper.getMainLooper());
-    final boolean audioEnabled;
+    boolean audioEnabled;
     float videoAspect;
     boolean preload,immediate,failed,ended,ready;
     ExoPlayer player;boolean active=true,disposed=false,attempted=false,scheduled=false,firstFrame=false,progressLogged=false;long generation=0;
     HeroPreview(Context context,View hero,TextureView surface,ExecutorService executor,String embed,String referer,String ua,boolean preload,boolean immediate){this(context,hero,surface,executor,embed,referer,ua,preload,immediate,false);}
     HeroPreview(Context context,View hero,TextureView surface,ExecutorService executor,String embed,String referer,String ua,boolean preload,boolean immediate,boolean audioEnabled){this.audioEnabled=audioEnabled;this.context=context;this.hero=hero;this.surface=surface;this.executor=executor;this.embed=embed;this.referer=referer;this.ua=ua;this.preload=preload;this.immediate=immediate;surface.addOnLayoutChangeListener((v,l,t,r,b,oldL,oldT,oldR,oldB)->updateCover());handler.post(monitor);}
+    void setAudioEnabled(boolean enabled){audioEnabled=enabled;if(player!=null){player.setAudioAttributes(new AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build(),enabled);player.setTrackSelectionParameters(player.getTrackSelectionParameters().buildUpon().setTrackTypeDisabled(C.TRACK_TYPE_AUDIO,!enabled).build());player.setVolume(enabled?1f:0f);}}
     void promote(){preload=false;immediate=true;if(player!=null){if(firstFrame)surface.setAlpha(1);player.play();}android.util.Log.i("NicoStreamPreview","PROMOTED prepared="+ready);}
     final Runnable monitor=new Runnable(){public void run(){
         if(disposed)return;Rect visible=new Rect();boolean onScreen=active&&hero.isAttachedToWindow()&&(preload||hero.getGlobalVisibleRect(visible)&&visible.height()>0);
