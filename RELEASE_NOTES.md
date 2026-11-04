@@ -1,7 +1,5 @@
-Hero cinematografica con locandina verticale.
+Hero più essenziale, con più spazio al video.
 
-- Hero più alta, con trailer sullo sfondo e copertina verticale sfalsata, sporgente dal bordo inferiore dello sfondo.
-- Titolo, metadati e descrizione con più spazio e contrasto.
-- Sfumature e cornice della locandina rifinite.
-- Azioni e navigazione con telecomando mantenute.
-- Trailer più luminoso e in modalità cover: riempie il riquadro con ritaglio centrale, anche dopo cambi di dimensione.
+- Copertina verticale ridotta di circa un quarto.
+- Zona testo più stretta, titolo e pulsanti più compatti.
+- Descrizione su due righe, mantenendo video a tutta larghezza e copertina sfalsata.

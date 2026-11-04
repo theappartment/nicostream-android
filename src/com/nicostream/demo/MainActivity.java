@@ -304,7 +304,7 @@ public class MainActivity extends Activity {
     }
     void discoverHero(JSONObject item){
         int viewport=getResources().getDisplayMetrics().widthPixels-dp(52);
-        boolean compact=viewport<dp(720);int posterWidth=compact?112:148,posterHeight=posterWidth*3/2;
+        boolean compact=viewport<dp(720);int posterWidth=compact?96:112,posterHeight=posterWidth*3/2;
         FrameLayout hero=new FrameLayout(this);hero.setTag("tv-focus-anchor");hero.setClipChildren(false);hero.setClipToPadding(false);
         FrameLayout backdrop=new FrameLayout(this);backdrop.setBackground(bg(PANEL,14));backdrop.setClipToOutline(true);FrameLayout.LayoutParams backdropParams=new FrameLayout.LayoutParams(-1,dp(350));hero.addView(backdrop,backdropParams);
         String image=item.optString("backdrop");if(image.isEmpty())image=item.optString("thumb");if(image.isEmpty())image=item.optString("art");
@@ -316,17 +316,17 @@ public class MainActivity extends Activity {
         View bottomShade=new View(this);bottomShade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{Color.TRANSPARENT,BG}));backdrop.addView(bottomShade,new FrameLayout.LayoutParams(-1,dp(85),Gravity.BOTTOM));
         LinearLayout foreground=new LinearLayout(this);foreground.setGravity(Gravity.CENTER_VERTICAL);foreground.setPadding(dp(30),dp(120),dp(30),dp(24));foreground.setClipChildren(false);foreground.setClipToPadding(false);
         String poster=item.optString("art");if(poster.startsWith("https://")){
-            FrameLayout cover=new FrameLayout(this);GradientDrawable border=bg(Color.rgb(35,43,51),10);border.setStroke(dp(1),Color.argb(70,255,255,255));cover.setBackground(border);cover.setPadding(dp(2),dp(2),dp(2),dp(2));cover.setElevation(dp(10));cover.setTranslationY(dp(18));cover.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+            FrameLayout cover=new FrameLayout(this);GradientDrawable border=bg(Color.rgb(35,43,51),10);border.setStroke(dp(1),Color.argb(70,255,255,255));cover.setBackground(border);cover.setPadding(dp(2),dp(2),dp(2),dp(2));cover.setElevation(dp(10));cover.setTranslationY(dp(26));cover.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
             ImageView artwork=artwork(poster,posterWidth,posterHeight);artwork.setBackground(bg(PANEL,8));cover.addView(artwork,new FrameLayout.LayoutParams(-1,-1));
-            LinearLayout.LayoutParams coverParams=new LinearLayout.LayoutParams(dp(posterWidth+4),dp(posterHeight+4));coverParams.rightMargin=dp(compact?20:28);foreground.addView(cover,coverParams);
+            LinearLayout.LayoutParams coverParams=new LinearLayout.LayoutParams(dp(posterWidth+4),dp(posterHeight+4));coverParams.rightMargin=dp(compact?16:22);foreground.addView(cover,coverParams);
         }
         LinearLayout copy=col();copy.setGravity(Gravity.CENTER_VERTICAL);
-        TextView eyebrow=text("IN EVIDENZA",11,MINT);eyebrow.setLetterSpacing(.16f);copy.addView(eyebrow);space(copy,8);
-        TextView name=title(item.optString("title"),compact?32:40);name.setShadowLayer(dp(4),0,dp(2),Color.BLACK);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(name);space(copy,8);
-        TextView metadata=text(item.optString("tag")+(item.optString("year").isEmpty()?"":"  ·  "+item.optString("year")),12,MUTED);metadata.setLetterSpacing(.06f);copy.addView(metadata);space(copy,8);
-        TextView plot=text(item.optString("description"),14,WHITE);plot.setShadowLayer(dp(3),0,dp(1),Color.BLACK);plot.setMaxLines(3);plot.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(plot);space(copy,18);
-        LinearLayout actions=new LinearLayout(this);TextView open=button("▶ Apri titolo",()->openItem(item));actions.addView(open);TextView favorite=button(isFavorite(item)?"✓ Nella mia lista":"＋ La mia lista",()->{toggleFavorite(item);home();});LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-2,-2);fp.leftMargin=dp(10);actions.addView(favorite,fp);copy.addView(actions);
-        int copyWidth=Math.min(dp(compact?390:445),viewport-dp(60+(poster.startsWith("https://")?posterWidth+4+(compact?20:28):0)));
+        TextView eyebrow=text("IN EVIDENZA",10,MINT);eyebrow.setLetterSpacing(.16f);copy.addView(eyebrow);space(copy,8);
+        TextView name=title(item.optString("title"),compact?26:30);name.setShadowLayer(dp(4),0,dp(2),Color.BLACK);name.setMaxLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(name);space(copy,8);
+        TextView metadata=text(item.optString("tag")+(item.optString("year").isEmpty()?"":"  ·  "+item.optString("year")),11,MUTED);metadata.setLetterSpacing(.06f);copy.addView(metadata);space(copy,8);
+        TextView plot=text(item.optString("description"),12,WHITE);plot.setShadowLayer(dp(3),0,dp(1),Color.BLACK);plot.setMaxLines(2);plot.setEllipsize(android.text.TextUtils.TruncateAt.END);copy.addView(plot);space(copy,12);
+        LinearLayout actions=new LinearLayout(this);TextView open=button("▶ Apri titolo",()->openItem(item));actions.addView(open);TextView favorite=button(isFavorite(item)?"✓ Nella mia lista":"＋ La mia lista",()->{toggleFavorite(item);home();});LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(-2,-2);fp.leftMargin=dp(8);actions.addView(favorite,fp);for(TextView action:new TextView[]{open,favorite}){action.setTextSize(13);action.setMinHeight(dp(40));action.setPadding(dp(14),dp(10),dp(14),dp(10));}copy.addView(actions);
+        int copyWidth=Math.min(dp(compact?285:340),viewport-dp(60+(poster.startsWith("https://")?posterWidth+4+(compact?16:22):0)));
         foreground.addView(copy,new LinearLayout.LayoutParams(Math.max(dp(220),copyWidth),-2));hero.addView(foreground,new FrameLayout.LayoutParams(-1,-1));body.addView(hero,new LinearLayout.LayoutParams(-1,dp(440)));space(body,24);
     }
     HorizontalScrollView tvShelf(){
