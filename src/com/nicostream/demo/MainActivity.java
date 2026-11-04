@@ -21,8 +21,10 @@ import java.util.*;
 import java.util.concurrent.*;
 
 public class MainActivity extends Activity {
-    final int BG=Color.rgb(7,11,17), PANEL=Color.rgb(18,24,33), MINT=Color.rgb(153,239,202), WHITE=Color.rgb(240,246,246), MUTED=Color.rgb(157,177,184);
+    final int BG=Color.BLACK, PANEL=Color.rgb(14,16,19), MINT=Color.rgb(124,159,181), WHITE=Color.rgb(240,246,246), MUTED=Color.rgb(156,165,174);
     AppOpening opening;
+    ToonArtwork toonArtwork;
+    DoomsdayCollection doomsday;LinearLayout doomsdaySlot;int marvelChapter;boolean marvelSearch,marvelDetail;
     final TvFocusNavigation tvFocus=new TvFocusNavigation();
     LinearLayout root,body,nav,transport;
     JSONArray items=new JSONArray();
@@ -103,7 +105,7 @@ public class MainActivity extends Activity {
     int dp(float n){return (int)(getResources().getDisplayMetrics().density*n+.5f);}
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
-        prefs=getSharedPreferences("nico",0);homeTrailerAudio=prefs.getBoolean("homeTrailerAudio",true);posterBadges=new PosterBadges();
+        prefs=getSharedPreferences("nico",0);homeTrailerAudio=prefs.getBoolean("homeTrailerAudio",true);posterBadges=new PosterBadges();toonArtwork=new ToonArtwork(this);doomsday=new DoomsdayCollection(this);
         updates=new AppUpdates(this,()->screen.equals("home")&&section.equals("Scopri")&&currentJob.isEmpty());
         if(getIntent().getBooleanExtra("import_engine_setup",false)){
             File setup=new File(getExternalFilesDir(null),"engine-setup.json");
@@ -115,7 +117,7 @@ public class MainActivity extends Activity {
         try{currentSeries=new JSONObject(prefs.getString("scLastTitle","{}"));}catch(Exception ignored){}
         try{if(prefs.getInt("discoverVersion",0)==1){discoverFeed=new JSONObject(prefs.getString("discoverFeed","{}"));discoverUpdated=0;}}catch(Exception ignored){}
         localCatalog();items=new JSONArray();if(prefs.getString("serverKey","").isEmpty())settings();else{refreshSourceIndex(true,null);home();}
-        if(b==null){opening=new AppOpening(this);opening.show();}
+        if(b==null){opening=new AppOpening(this,()->{if(heroCarousel!=null)heroCarousel.setActive(getWindow().getDecorView().hasWindowFocus());});opening.show();if(heroCarousel!=null&&opening.visible())heroCarousel.setActive(false);}
     }
     String server(){return EngineAccess.SERVER;}
     void localCatalog(){try{items=new JSONObject(read(getAssets().open("catalog.json"))).getJSONArray("items");}catch(Exception e){items=new JSONArray();}}
@@ -165,9 +167,12 @@ public class MainActivity extends Activity {
         for(String s:new String[]{"Cerca","Scopri","Preferiti","Impostazioni"}){
             TextView b=button(s.equals("Scopri")?"Home":s,()->{if(s.equals("Impostazioni")){settings();return;}if(s.equals("Cerca")){searchCatalog();return;}if(s.equals("Scopri")){discoverScrollY=0;history.clear();titles.clear();historySections.clear();items=addonRoot;catalogTitle="Stream4me";section=s;focusItem="";home();return;}if(s.equals("Catalogo")){showAddons();return;}section=s;focusItem="";home();});
             b.setTextSize(14);b.setTextColor(activeSection.equals(s)?WHITE:MUTED);b.setPadding(dp(14),dp(7),dp(14),dp(5));b.setMinHeight(dp(40));
-            b.setBackground(focus(Color.TRANSPARENT));
+            StateListDrawable navFocus=new StateListDrawable();
+            GradientDrawable illuminated=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{Color.argb(25,224,235,243),Color.argb(10,224,235,243)});illuminated.setCornerRadius(dp(8));
+            navFocus.addState(new int[]{android.R.attr.state_pressed},bg(Color.argb(35,224,235,243),8));navFocus.addState(new int[]{android.R.attr.state_focused},illuminated);navFocus.addState(new int[]{},bg(Color.TRANSPARENT,8));navFocus.setEnterFadeDuration(140);navFocus.setExitFadeDuration(140);b.setBackground(navFocus);
+            android.content.res.ColorStateList navColors=new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_focused},new int[]{android.R.attr.state_pressed},new int[]{}},new int[]{WHITE,WHITE,activeSection.equals(s)?WHITE:MUTED});b.setTextColor(navColors);
             int iconId=s.equals("Scopri")?R.drawable.ic_nav_discover:s.equals("Cerca")?R.drawable.ic_nav_search:s.equals("Catalogo")?R.drawable.ic_nav_catalog:s.equals("Preferiti")?R.drawable.ic_nav_favorites:R.drawable.ic_nav_settings;
-            android.graphics.drawable.Drawable icon=getDrawable(iconId).mutate();icon.setTint(activeSection.equals(s)?WHITE:MUTED);
+            android.graphics.drawable.Drawable icon=getDrawable(iconId).mutate();icon.setTintList(navColors);
             GradientDrawable underline=bg(activeSection.equals(s)?MINT:Color.TRANSPARENT,1);underline.setSize(dp(20),dp(2));b.setCompoundDrawablePadding(dp(7));b.setCompoundDrawablesWithIntrinsicBounds(icon,null,null,underline);b.setContentDescription(s.equals("Scopri")?"Home":s);
             LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,dp(42));p.setMargins(0,0,dp(6),0);nav.addView(b,p);
         }
@@ -187,7 +192,7 @@ public class MainActivity extends Activity {
         LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
         heading.addView(title(section.equals("Preferiti")?"La tua selezione":server().isEmpty()?"Da esplorare":catalogTitle,21),new LinearLayout.LayoutParams(0,-2,1));
         if(!history.isEmpty())heading.addView(button("‹ Indietro",this::previous));
-        if(!server().isEmpty())heading.addView(button("⌂ Addon",this::showAddons));body.addView(heading);
+        body.addView(heading);
         if(items.length()>0&&items.optJSONObject(0)!=null&&items.optJSONObject(0).optString("addonId").equals("plugin.video.nikod.programfeed"))body.addView(button("Impostazioni Program Feed",()->{try{action(new JSONObject().put("url","plugin://plugin.video.nikod.programfeed/?android_settings=1").put("title","Program Feed"));}catch(Exception ignored){}}));
         boolean nativeCatalog=!section.equals("Cerca")&&!section.equals("Preferiti")&&items.length()>0&&items.optJSONObject(0)!=null&&!items.optJSONObject(0).optString("scAction").isEmpty();
         boolean toonDirectory=!section.equals("Cerca")&&!section.equals("Preferiti")&&items.length()>0&&items.optJSONObject(0)!=null&&items.optJSONObject(0).optString("addonId").equals("plugin.video.nikod.toonitalia");
@@ -323,12 +328,14 @@ public class MainActivity extends Activity {
         continueShelf();
         JSONArray saved=favorites();if(saved.length()>0)discoverRail("La tua lista",saved,false);
         JSONArray rails=discoverFeed==null?null:discoverFeed.optJSONArray("rails");
+        doomsdaySlot=null;
         // Keep Top 10 first among discovery rails, preserving the order of the others.
         if(rails!=null)for(int pass=0;pass<2;pass++)for(int i=0;i<rails.length();i++){
             JSONObject rail=rails.optJSONObject(i);if(rail==null)continue;
             boolean ranked=rail.optString("id").equals("top10");
-            if(ranked==(pass==0))discoverRail(rail.optString("title"),rail.optJSONArray("items"),ranked);
+            if(ranked==(pass==0)){discoverRail(rail.optString("title"),rail.optJSONArray("items"),ranked);if(rail.optString("id").equals("latest")&&doomsdaySlot==null)addDoomsday();}
         }
+        if(doomsdaySlot==null)addDoomsday();
         JSONArray genres=discoverFeed==null?null:discoverFeed.optJSONArray("genres");String origin=providerOrigin();
         if(genres!=null&&!origin.isEmpty()){
             body.addView(title("Esplora per genere",22));HorizontalScrollView scroll=tvShelf();scroll.setHorizontalScrollBarEnabled(false);LinearLayout row=new LinearLayout(this);row.setClipChildren(false);row.setClipToPadding(false);
@@ -339,6 +346,14 @@ public class MainActivity extends Activity {
         else{LinearLayout footer=new LinearLayout(this);footer.addView(text("Scopri qualcosa di nuovo, oppure riparti da dove eri rimasto.",12,MUTED),new LinearLayout.LayoutParams(0,-2,1));footer.addView(button("Aggiorna",()->{refreshSourceIndex(true,()->loadDiscover(true));loadProgramHome(true);}));body.addView(footer);if(!discoverError.isEmpty())body.addView(text(discoverError,12,MUTED));}
         if(server().isEmpty()&&(rails==null||rails.length()==0))for(int i=0;i<items.length();i++){JSONObject item=items.optJSONObject(i);if(item!=null)body.addView(card(item));}
         space(body,20);
+    }
+    void addDoomsday(){doomsdaySlot=col();doomsdaySlot.setPadding(dp(16),dp(12),dp(16),dp(4));doomsdaySlot.setBackground(DoomTheme.panel(getResources().getDisplayMetrics().density));body.addView(doomsdaySlot);renderDoomsday();doomsday.load();}
+    void showMarvelGuide(){rememberDiscover();screen="marvel";base();addNavigation("");root.addView(new MarvelGuide(this).view,new LinearLayout.LayoutParams(-1,0,1));}
+    void renderDoomsday(){
+        if(doomsdaySlot==null||!doomsdaySlot.isAttachedToWindow()||doomsdaySlot.hasFocus())return;
+        doomsdaySlot.removeAllViews();LinearLayout previous=body;body=doomsdaySlot;
+        body.addView(text("IL PERCORSO VERSO DOOMSDAY",10,DoomTheme.GREEN));
+        discoverRail(DoomsdayCollection.LABEL,doomsday.items,false);body=previous;
     }
     ImageButton carouselArrow(boolean forward){
         ImageButton arrow=new ImageButton(this);arrow.setImageResource(forward?R.drawable.ic_carousel_next:R.drawable.ic_carousel_previous);arrow.setScaleType(ImageView.ScaleType.CENTER);arrow.setPadding(0,0,0,0);arrow.setFocusable(true);arrow.setClickable(true);
@@ -351,7 +366,7 @@ public class MainActivity extends Activity {
         LinearLayout pager=new LinearLayout(this);pager.setGravity(Gravity.CENTER_VERTICAL);ImageButton previous=carouselArrow(false),next=carouselArrow(true);TextView counter=text("",11,MUTED);previous.setContentDescription("Titolo precedente");next.setContentDescription("Titolo successivo");counter.setGravity(Gravity.CENTER);counter.setLetterSpacing(.04f);counter.setAlpha(.8f);pager.addView(previous,new LinearLayout.LayoutParams(dp(44),dp(44)));pager.addView(counter,new LinearLayout.LayoutParams(dp(44),-2));pager.addView(next,new LinearLayout.LayoutParams(dp(44),dp(44)));
         ImageButton sound=carouselArrow(true);sound.setImageResource(homeTrailerAudio?R.drawable.ic_audio_on:R.drawable.ic_audio_off);sound.setContentDescription(homeTrailerAudio?"Disattiva audio trailer":"Attiva audio trailer");sound.setOnClickListener(v->{homeTrailerAudio=!homeTrailerAudio;prefs.edit().putBoolean("homeTrailerAudio",homeTrailerAudio).apply();sound.setImageResource(homeTrailerAudio?R.drawable.ic_audio_on:R.drawable.ic_audio_off);sound.setContentDescription(homeTrailerAudio?"Disattiva audio trailer":"Attiva audio trailer");if(heroCarousel!=null)heroCarousel.setAudioEnabled(homeTrailerAudio);});LinearLayout.LayoutParams soundParams=new LinearLayout.LayoutParams(dp(44),dp(44));soundParams.leftMargin=dp(14);pager.addView(sound,soundParams);
         FrameLayout.LayoutParams pagerParams=new FrameLayout.LayoutParams(-2,-2,Gravity.BOTTOM|Gravity.RIGHT);pagerParams.rightMargin=dp(28);pagerParams.bottomMargin=dp(12);outer.addView(pager,pagerParams);tvFocus.secondary(pager);
-        body.addView(outer,new LinearLayout.LayoutParams(-1,dp(440)));space(body,24);heroCarousel=new HeroCarousel(stage,this::buildHeroSlide,counter,previous,next);JSONArray candidates=HeroSelection.candidates(discoverFeed);if(candidates.length()==0)candidates.put(item);heroCarousel.setAudioEnabled(homeTrailerAudio);heroCarousel.update(candidates);
+        body.addView(outer,new LinearLayout.LayoutParams(-1,dp(440)));space(body,24);heroCarousel=new HeroCarousel(stage,this::buildHeroSlide,counter,previous,next);JSONArray candidates=HeroSelection.candidates(discoverFeed);if(candidates.length()==0)candidates.put(item);heroCarousel.setAudioEnabled(homeTrailerAudio);heroCarousel.setActive(opening==null||!opening.visible());heroCarousel.update(candidates);
     }
     HeroCarousel.Slide buildHeroSlide(JSONObject item,boolean preload,boolean immediate){
         HeroPreview previewPlayer=null;
@@ -386,9 +401,9 @@ public class MainActivity extends Activity {
         HorizontalScrollView shelf=new HorizontalScrollView(this);shelf.setClipChildren(false);shelf.setClipToPadding(false);shelf.setPadding(dp(10),dp(12),dp(10),dp(12));shelf.setHorizontalScrollBarEnabled(false);return shelf;
     }
     void discoverRail(String label,JSONArray list,boolean ranked){
-        if(list==null||list.length()==0)return;LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);heading.addView(title(label,22),new LinearLayout.LayoutParams(0,-2,1));heading.addView(button("Vedi tutti",()->{pushHistory();items=list;catalogTitle=label;section="Catalogo";focusItem="";home();}));body.addView(heading);space(body,8);
+        if(list==null||list.length()==0)return;LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);if(label.equals(DoomsdayCollection.LABEL)){FrameLayout logoFrame=new FrameLayout(this);ImageView logo=new ImageView(this);logo.setImageResource(R.drawable.doomsday_logo);logo.setScaleType(ImageView.ScaleType.FIT_START);logo.setContentDescription("Avengers Doomsday");logoFrame.addView(logo,new FrameLayout.LayoutParams(dp(235),dp(90),Gravity.LEFT|Gravity.CENTER_VERTICAL));heading.addView(logoFrame,new LinearLayout.LayoutParams(0,dp(94),1));}else heading.addView(title(label,22),new LinearLayout.LayoutParams(0,-2,1));heading.addView(button("Vedi tutti",()->{if(label.equals(DoomsdayCollection.LABEL)){showMarvelGuide();return;}pushHistory();items=list;catalogTitle=label;section="Catalogo";focusItem="";home();}));if(label.equals(DoomsdayCollection.LABEL))heading.getChildAt(1).setBackground(DoomTheme.focus(getResources().getDisplayMetrics().density));body.addView(heading);space(body,8);
         HorizontalScrollView scroll=tvShelf();scroll.setClipToPadding(false);scroll.setPadding(dp(10),dp(12),dp(10),dp(12));scroll.setHorizontalScrollBarEnabled(false);LinearLayout row=new LinearLayout(this);row.setClipChildren(false);row.setClipToPadding(false);
-        for(int n=0;n<Math.min(12,list.length());n++){JSONObject item=list.optJSONObject(n);if(item==null)continue;row.addView(ranked?rankedCard(item,n+1):card(item));}
+        for(int n=0;n<Math.min(12,list.length());n++){JSONObject item=list.optJSONObject(n);if(item==null)continue;View tile=ranked?rankedCard(item,n+1):card(item);if(label.equals(DoomsdayCollection.LABEL))tile.setBackground(DoomTheme.focus(getResources().getDisplayMetrics().density));row.addView(tile);}
         scroll.addView(row);tvFocus.shelf(scroll,heading.getChildAt(1));scroll.setOnScrollChangeListener((View.OnScrollChangeListener)(v,x,y,oldX,oldY)->discoverRowOffsets.put(label,x));scroll.post(()->scroll.scrollTo(discoverRowOffsets.getOrDefault(label,0),0));body.addView(scroll);space(body,20);
     }
     View rankedCard(JSONObject item,int rank){
@@ -407,7 +422,7 @@ public class MainActivity extends Activity {
                 if(bounds.width()==0||bounds.height()==0)return;
                 float stroke=getResources().getDisplayMetrics().density*2.5f,scale=Math.min((getWidth()-stroke*2)/bounds.width(),(getHeight()-stroke*2)/bounds.height());
                 android.graphics.Matrix matrix=new android.graphics.Matrix();matrix.setScale(scale,scale);matrix.postTranslate((getWidth()-bounds.width()*scale)/2-bounds.left*scale,(getHeight()-bounds.height()*scale)/2-bounds.top*scale);
-                android.graphics.Path fitted=new android.graphics.Path();glyph.transform(matrix,fitted);paint.setStyle(android.graphics.Paint.Style.STROKE);paint.setStrokeWidth(stroke);boolean selected=card.hasFocus()||card.isPressed();paint.setColor(selected?MINT:Color.rgb(97,97,97));if(selected)paint.setShadowLayer(dp(7),0,0,Color.argb(180,112,239,199));else paint.clearShadowLayer();canvas.drawPath(fitted,paint);paint.clearShadowLayer();paint.setStyle(android.graphics.Paint.Style.FILL);
+                android.graphics.Path fitted=new android.graphics.Path();glyph.transform(matrix,fitted);paint.setStyle(android.graphics.Paint.Style.STROKE);paint.setStrokeWidth(stroke);boolean selected=card.hasFocus()||card.isPressed();paint.setColor(selected?MINT:Color.rgb(97,97,97));if(selected)paint.setShadowLayer(dp(7),0,0,Color.argb(180,124,159,181));else paint.clearShadowLayer();canvas.drawPath(fitted,paint);paint.clearShadowLayer();paint.setStyle(android.graphics.Paint.Style.FILL);
             }
         };
         number.setLayerType(View.LAYER_TYPE_SOFTWARE,null);card.setOnFocusChangeListener((v,on)->{if(on)focusItem=item.optString("id");number.invalidate();});number.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);card.addView(number,new FrameLayout.LayoutParams(dp(numberWidth),dp(height)));
@@ -416,7 +431,7 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(dp(inset+posterWidth+36),dp(height+36));params.setMargins(0,0,dp(14),dp(12));card.setLayoutParams(params);return card;
     }
     void hero(JSONObject item){
-        LinearLayout h=col();h.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{Color.rgb(29,68,66),Color.rgb(22,35,46)}));h.setPadding(dp(28),dp(22),dp(28),dp(24));
+        LinearLayout h=col();h.setBackground(new GradientDrawable(GradientDrawable.Orientation.TL_BR,new int[]{Color.rgb(28,43,55),Color.rgb(22,35,46)}));h.setPadding(dp(28),dp(22),dp(28),dp(24));
         h.addView(text("IN EVIDENZA / "+item.optString("duration"),11,MINT));h.addView(title(item.optString("title"),30));
         TextView desc=text(item.optString("description"),14,WHITE);desc.setMaxLines(2);h.addView(desc);space(h,10);h.addView(button("▶ Scopri il film",()->openItem(item)),new LinearLayout.LayoutParams(-2,-2));body.addView(h);space(body,16);
     }
@@ -429,9 +444,7 @@ public class MainActivity extends Activity {
         artworkWorker.execute(()->{
             android.graphics.Bitmap ready=artworkCache.get(url);if(ready!=null){main.post(()->{if(alive&&image.isAttachedToWindow())bindArtwork(image,url,ready);});return;}
             try{
-                HttpURLConnection connection=(HttpURLConnection)new URL(url).openConnection();connection.setConnectTimeout(7000);connection.setReadTimeout(10000);connection.setInstanceFollowRedirects(false);
-                byte[] bytes;
-                try(InputStream input=connection.getInputStream();ByteArrayOutputStream out=new ByteArrayOutputStream()){byte[] b=new byte[8192];int n;while((n=input.read(b))!=-1){out.write(b,0,n);if(out.size()>4194304)throw new IOException("Immagine troppo grande");}bytes=out.toByteArray();}finally{connection.disconnect();}
+                byte[] bytes=ArtworkDisk.load(getCacheDir(),url);
                 android.graphics.BitmapFactory.Options options=new android.graphics.BitmapFactory.Options();options.inJustDecodeBounds=true;android.graphics.BitmapFactory.decodeByteArray(bytes,0,bytes.length,options);options.inSampleSize=1;
                 while(options.outWidth/options.inSampleSize>(height>=230?1280:640)||options.outHeight/options.inSampleSize>(height>=230?1280:640))options.inSampleSize*=2;
                 options.inJustDecodeBounds=false;android.graphics.Bitmap bitmap=android.graphics.BitmapFactory.decodeByteArray(bytes,0,bytes.length,options);
@@ -470,6 +483,7 @@ public class MainActivity extends Activity {
         LinearLayout c=col();c.setPadding(dp(8),dp(8),dp(8),dp(10));focusCard(c,item);
         boolean poster=posterItem(item);int width=poster?168:208;
         String art=item.optString("art");JSONObject visual=item.optJSONObject("sportsArtwork");if(visual!=null)c.addView(sportsArtwork(visual));else if(art.startsWith("https://"))c.addView(artwork(art,-1,poster?218:100));
+        else if(item.optString("addonId").contains("toonitalia")&&item.optString("action").equals("title")){ImageView placeholder=artwork("",-1,poster?218:100);c.addView(placeholder);toonArtwork.bind(item,placeholder,poster?218:100);}
         else{TextView icon=title(item.optString("symbol","N"),32);icon.setGravity(Gravity.CENTER);icon.setTextColor(MINT);icon.setBackground(new GradientDrawable(GradientDrawable.Orientation.BL_TR,new int[]{Color.rgb(30,60,64),PANEL}));c.addView(icon,new LinearLayout.LayoutParams(-1,dp(poster?218:100)));}
         space(c,7);TextView name=title(item.optString("title"),15);name.setLines(2);name.setEllipsize(android.text.TextUtils.TruncateAt.END);c.addView(name);TextView metadata=text(item.optString("tag")+(item.optString("year").isEmpty()?"":" · "+item.optString("year")),10,MUTED);metadata.setSingleLine(true);metadata.setEllipsize(android.text.TextUtils.TruncateAt.END);c.addView(metadata);if(section.equals("Cerca")){TextView provider=text(item.optString("searchProvider"),10,MINT);provider.setSingleLine(true);provider.setEllipsize(android.text.TextUtils.TruncateAt.END);c.addView(provider);}
         LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(dp(width),-2);p.setMargins(0,0,dp(12),dp(12));c.setLayoutParams(p);return c;
@@ -569,8 +583,8 @@ public class MainActivity extends Activity {
             throw new IOException("Ricerca scaduta");
         }finally{if(!job.isEmpty()){cancelRemote(job);if(currentJob.equals(job))currentJob="";}}
     }
-    void openItem(JSONObject item){rememberDiscover();focusItem=item.optString("id");if(item.optBoolean("isNotice")){new AlertDialog.Builder(this).setTitle(item.optString("title")).setMessage(item.optString("description")).setPositiveButton("OK",null).show();return;}if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")&&item.optBoolean("isPlayable")){chooseEpisode(item);return;}if(item.optString("scAction").equals("episode")){chooseEpisode(item);return;}if(!item.optString("scAction").isEmpty()||isScSearch(item)){scCatalog(item);return;}if(item.optBoolean("isWeb")){openSourcePage(item);return;}if((item.optString("url").startsWith("plugin://")||item.optString("url").startsWith("/v1/route/"))){action(item);return;}details(item);}
-    boolean posterItem(JSONObject item){return item.optString("scAction").equals("title")||(item.optString("addonId").equals("plugin.video.nikod.toonitalia")&&item.optString("action").equals("title"));}
+    void openItem(JSONObject item){if(!item.optString("collectionQuery").isEmpty()){searchCatalog(item.optString("collectionQuery"));unifiedSearch(item.optString("collectionQuery"));return;}rememberDiscover();focusItem=item.optString("id");if(item.optBoolean("isNotice")){new AlertDialog.Builder(this).setTitle(item.optString("title")).setMessage(item.optString("description")).setPositiveButton("OK",null).show();return;}if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")&&item.optBoolean("isPlayable")){chooseEpisode(item);return;}if(item.optString("scAction").equals("episode")){chooseEpisode(item);return;}if(!item.optString("scAction").isEmpty()||isScSearch(item)){scCatalog(item);return;}if(item.optBoolean("isWeb")){openSourcePage(item);return;}if((item.optString("url").startsWith("plugin://")||item.optString("url").startsWith("/v1/route/"))){action(item);return;}details(item);}
+    boolean posterItem(JSONObject item){return !item.optString("collectionQuery").isEmpty()||item.optString("scAction").equals("title")||(item.optString("addonId").equals("plugin.video.nikod.toonitalia")&&item.optString("action").equals("title"));}
     boolean toonEpisodes(){for(int n=0;n<items.length();n++){JSONObject item=items.optJSONObject(n);if(item!=null&&item.optString("addonId").equals("plugin.video.nikod.toonitalia")&&item.optBoolean("isPlayable"))return true;}return false;}
     void showAddons(){
         if(server().isEmpty()){section="Catalogo";localCatalog();home();return;}
@@ -700,7 +714,14 @@ public class MainActivity extends Activity {
                                 try{JSONObject media=new JSONObject(item.toString());media.put("url",result.getString("url"));media.put("mime",result.optString("mime"));media.put("headers",result.optJSONObject("headers"));media.put("subtitles",result.optJSONArray("subtitles"));media.put("drm",result.optJSONObject("drm"));media.put("isPlugin",false);media.put("resumeSource",PlaybackHistory.source(item));if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")){JSONObject next=PlaybackHistory.next(item,items);if(next!=null)media.put("nextEpisode",next);}if(item.has("resumeAt"))media.put("resumeAt",item.getLong("resumeAt"));play(media);}catch(Exception e){showError(e.getMessage());home();}
                             }else{
                                 if(isRoot){history.clear();titles.clear();historySections.clear();}else{pushHistory();}
-                                items=result.optJSONArray("items");if(items==null)items=new JSONArray();catalogTitle=isRoot?"Stream4me":item.optString("title","Stream4me");if(isRoot)addonRoot=items;section=isRoot?"Scopri":"Catalogo";focusItem="";home();
+                                items=result.optJSONArray("items");if(items==null)items=new JSONArray();
+                                if(item.optString("addonId").contains("toonitalia")&&item.optString("action").equals("title")){
+                                    toonArtwork.hydrate(item);
+                                    for(int n=0;n<items.length();n++){JSONObject episode=items.optJSONObject(n);if(episode==null||!episode.optString("addonId").contains("toonitalia"))continue;
+                                        try{for(String field:new String[]{"art","backdrop"})if(episode.optString(field).isEmpty()&&!item.optString(field).isEmpty())episode.put(field,item.getString(field));if(episode.optString("thumb").isEmpty())episode.put("thumb",item.optString("backdrop",item.optString("art")));}catch(Exception ignored){}
+                                    }
+                                }
+                                catalogTitle=isRoot?"Stream4me":item.optString("title","Stream4me");if(isRoot)addonRoot=items;section=isRoot?"Scopri":"Catalogo";focusItem="";home();
                             }
                         });return;
                     }else if(phase.equals("error"))throw new IOException(state.optString("error","Errore addon"));
@@ -785,10 +806,14 @@ public class MainActivity extends Activity {
         for(int i=0;i<entries.length();i++){
             JSONObject entry=entries.optJSONObject(i),source=entry.optJSONObject("source");if(source==null)continue;long position=entry.optLong("position"),duration=entry.optLong("duration");
             LinearLayout card=col();card.setPadding(dp(10),dp(10),dp(10),dp(10));card.setBackground(focus());card.setFocusable(true);card.setClickable(true);card.setContentDescription("Riprendi "+source.optString("title"));card.setOnClickListener(v->resumeSource(source,position));card.setOnLongClickListener(v->{confirmRemoveContinue(source,card,block);return true;});
-            String image=source.optString("thumb");if(image.isEmpty())image=source.optString("art");card.addView(artwork(image,-1,92));TextView name=title(source.optString("seriesTitle",source.optString("title")),16);name.setMaxLines(1);name.setEllipsize(android.text.TextUtils.TruncateAt.END);card.addView(name);
-            if(source.optInt("episodeNumber")>0)card.addView(text("Stagione "+source.optInt("seasonNumber")+" · Episodio "+source.optInt("episodeNumber"),12,MUTED));
-            ProgressBar progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setProgressTintList(android.content.res.ColorStateList.valueOf(MINT));progress.setMax(1000);progress.setProgress(duration>0?(int)(position*1000/duration):0);card.addView(progress,new LinearLayout.LayoutParams(-1,dp(5)));card.addView(text(position>0?"▶ Riprendi da "+time(position):"▶ Guarda ora",12,MINT));
-            LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(dp(260),-2);cp.setMargins(0,0,dp(14),0);shelf.addView(card,cp);
+            String image=source.optString("thumb");if(image.isEmpty())image=source.optString("art");
+            FrameLayout thumbnail=new FrameLayout(this);thumbnail.setBackground(bg(PANEL,8));thumbnail.setClipToOutline(true);thumbnail.addView(artwork(image,-1,135),new FrameLayout.LayoutParams(-1,-1));
+            TextView play=text("▶",13,WHITE);play.setGravity(Gravity.CENTER);play.setBackground(bg(Color.argb(195,9,17,24),18));FrameLayout.LayoutParams playParams=new FrameLayout.LayoutParams(dp(34),dp(34),Gravity.BOTTOM|Gravity.RIGHT);playParams.rightMargin=dp(10);playParams.bottomMargin=dp(10);thumbnail.addView(play,playParams);thumbnail.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);card.addView(thumbnail,new LinearLayout.LayoutParams(-1,dp(135)));space(card,6);
+            TextView name=title(source.optString("seriesTitle",source.optString("title")),15);name.setSingleLine(true);name.setEllipsize(android.text.TextUtils.TruncateAt.END);card.addView(name,new LinearLayout.LayoutParams(-1,dp(28)));
+            String episode=source.optInt("episodeNumber")>0?"Stagione "+source.optInt("seasonNumber")+" · Episodio "+source.optInt("episodeNumber"):"Riproduzione in corso";TextView metadata=text(episode,11,MUTED);metadata.setSingleLine(true);metadata.setEllipsize(android.text.TextUtils.TruncateAt.END);card.addView(metadata,new LinearLayout.LayoutParams(-1,dp(23)));space(card,5);
+            ProgressBar progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setProgressTintList(android.content.res.ColorStateList.valueOf(MINT));progress.setProgressBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.argb(38,255,255,255)));progress.setMax(1000);progress.setProgress(duration>0?(int)(position*1000/duration):0);card.addView(progress,new LinearLayout.LayoutParams(-1,dp(3)));
+            TextView resume=text(position>0?"Riprendi da "+time(position):"Guarda ora",11,MINT);resume.setSingleLine(true);card.addView(resume,new LinearLayout.LayoutParams(-1,dp(24)));
+            LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(dp(260),dp(248));cp.setMargins(0,0,dp(14),0);shelf.addView(card,cp);
         }scroll.addView(shelf);block.addView(scroll);space(block,20);
     }
     void play(JSONObject item){
@@ -1030,8 +1055,8 @@ public class MainActivity extends Activity {
             .setNegativeButton("Resta",(dialog,which)->{if(first!=null)first.requestFocus();})
             .setPositiveButton("Esci",(dialog,which)->finish()).show();
     }
-    @Override public void onBackPressed(){if(screen.equals("search")){cancelSearch();section=searchBackSection;catalogTitle=searchBackTitle;items=searchBackItems;home();}else if(screen.equals("web")){if(automaticEpisode!=null){automaticEpisode=null;home();}else if(webCustomView!=null)closeWebFullscreen();else if(browser!=null&&browser.canGoBack())browser.goBack();else home();}else if(screen.equals("loading")){cancelJob();home();}else if(screen.equals("player")){if(selected!=null&&(selected.optBoolean("localBrowserSession")||selected.optString("addonId").equals("plugin.video.nikod.toonitalia")||selected.optString("addonId").equals("plugin.video.nikod.programfeed")))home();else details(selected);}else if(!screen.equals("home")){home();}else if(section.equals("Scopri")){backFromDiscover();}else if(!history.isEmpty()){previous();}else{section="Scopri";discoverScrollY=0;focusItem="";home();}}
-    @Override protected void onPause(){main.removeCallbacks(programHomeRefresh);if(seriesScreen!=null)seriesScreen.setActive(false);if(heroCarousel!=null)heroCarousel.setActive(false);savePlayback(true);super.onPause();if(player!=null)player.pause();if(browser!=null)browser.onPause();}
-    @Override protected void onResume(){super.onResume();main.removeCallbacks(programHomeRefresh);main.post(programHomeRefresh);if(seriesScreen!=null)seriesScreen.setActive(true);if(updates!=null)updates.onResume();if(heroCarousel!=null)heroCarousel.setActive(true);if(browser!=null)browser.onResume();}
-    @Override protected void onDestroy(){if(seriesScreen!=null){seriesScreen.close();seriesScreen=null;}if(searchScreen!=null){searchScreen.close();searchScreen=null;}if(posterBadges!=null)posterBadges.close();if(updates!=null)updates.close();if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}savePlayback(true);alive=false;cancelJob();if(browser!=null){try{ServiceWorkerController.getInstance().setServiceWorkerClient(null);}catch(RuntimeException ignored){}browser.destroy();browser=null;}if(player!=null){player.release();player=null;}main.removeCallbacksAndMessages(null);worker.shutdown();artworkWorker.shutdownNow();artworkCache.evictAll();super.onDestroy();}
+    @Override public void onBackPressed(){if(marvelDetail&&(seriesScreen!=null||screen.equals("details"))){marvelDetail=false;showMarvelGuide();return;}if(screen.equals("search")&&marvelSearch){cancelSearch();marvelSearch=false;showMarvelGuide();return;}if(screen.equals("search")){cancelSearch();section=searchBackSection;catalogTitle=searchBackTitle;items=searchBackItems;home();}else if(screen.equals("web")){if(automaticEpisode!=null){automaticEpisode=null;home();}else if(webCustomView!=null)closeWebFullscreen();else if(browser!=null&&browser.canGoBack())browser.goBack();else home();}else if(screen.equals("loading")){cancelJob();home();}else if(screen.equals("player")){if(selected!=null&&(selected.optBoolean("localBrowserSession")||selected.optString("addonId").equals("plugin.video.nikod.toonitalia")||selected.optString("addonId").equals("plugin.video.nikod.programfeed")))home();else details(selected);}else if(!screen.equals("home")){home();}else if(section.equals("Scopri")){backFromDiscover();}else if(!history.isEmpty()){previous();}else{section="Scopri";discoverScrollY=0;focusItem="";home();}}
+    @Override protected void onPause(){if(opening!=null&&opening.visible())opening.dismiss();main.removeCallbacks(programHomeRefresh);if(seriesScreen!=null)seriesScreen.setActive(false);if(heroCarousel!=null)heroCarousel.setActive(false);savePlayback(true);super.onPause();if(player!=null)player.pause();if(browser!=null)browser.onPause();}
+    @Override protected void onResume(){super.onResume();main.removeCallbacks(programHomeRefresh);main.post(programHomeRefresh);if(seriesScreen!=null)seriesScreen.setActive(true);if(updates!=null)updates.onResume();if(heroCarousel!=null)heroCarousel.setActive(opening==null||!opening.visible());if(browser!=null)browser.onResume();}
+    @Override protected void onDestroy(){if(toonArtwork!=null)toonArtwork.close();if(seriesScreen!=null){seriesScreen.close();seriesScreen=null;}if(searchScreen!=null){searchScreen.close();searchScreen=null;}if(posterBadges!=null)posterBadges.close();if(updates!=null)updates.close();if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}savePlayback(true);alive=false;cancelJob();if(browser!=null){try{ServiceWorkerController.getInstance().setServiceWorkerClient(null);}catch(RuntimeException ignored){}browser.destroy();browser=null;}if(player!=null){player.release();player=null;}main.removeCallbacksAndMessages(null);worker.shutdown();artworkWorker.shutdownNow();artworkCache.evictAll();super.onDestroy();}
 }

@@ -23,13 +23,13 @@ final class TvFocusDrawable extends Drawable {
         paint.setStyle(Paint.Style.FILL);paint.setShader(null);
         if(focused||pressed){
             paint.setShader(new LinearGradient(rect.left,rect.top,rect.right,rect.bottom,
-                pressed?Color.rgb(49,87,82):Color.rgb(39,65,66),Color.rgb(23,37,46),Shader.TileMode.CLAMP));
-        }else paint.setColor(selected?Color.rgb(25,45,43):idle);
+                pressed?Color.rgb(38,54,67):Color.rgb(27,38,48),Color.rgb(15,20,26),Shader.TileMode.CLAMP));
+        }else paint.setColor(selected?Color.rgb(22,32,41):idle);
         canvas.drawRoundRect(rect,radius,radius,paint);paint.setShader(null);
         if(focused||pressed){
-            float inset=2*density;rect.inset(inset,inset);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(2*density);paint.setColor(pressed?Color.rgb(153,239,202):Color.rgb(239,250,247));canvas.drawRoundRect(rect,radius-inset,radius-inset,paint);
+            float inset=2*density;rect.inset(inset,inset);paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(2*density);paint.setColor(pressed?Color.rgb(124,159,181):Color.rgb(224,235,243));canvas.drawRoundRect(rect,radius-inset,radius-inset,paint);
         }else if(selected){
-            paint.setColor(Color.rgb(153,239,202));float width=Math.min(rect.width()*.35f,40*density);float y=rect.bottom-4*density;canvas.drawRoundRect(rect.centerX()-width/2,y,rect.centerX()+width/2,y+2*density,density,density,paint);
+            paint.setColor(Color.rgb(124,159,181));float width=Math.min(rect.width()*.35f,40*density);float y=rect.bottom-4*density;canvas.drawRoundRect(rect.centerX()-width/2,y,rect.centerX()+width/2,y+2*density,density,density,paint);
         }
     }
     @Override public void setAlpha(int alpha){paint.setAlpha(alpha);invalidateSelf();}

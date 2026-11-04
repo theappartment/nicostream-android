@@ -14,8 +14,12 @@ final class AppOpening {
     private FrameLayout overlay;
     private View previousFocus;
     private ValueAnimator lightAnimation;
+    private android.media.MediaPlayer sound;
+    private android.media.AudioManager audioManager;
+    private android.media.AudioFocusRequest audioFocus;
+    private final Runnable finished;
     private final Activity activity;
-    AppOpening(Activity activity){this.activity=activity;}
+    AppOpening(Activity activity,Runnable finished){this.activity=activity;this.finished=finished;}
     private int dp(float n){return Math.round(n*activity.getResources().getDisplayMetrics().density);}
     boolean visible(){return overlay!=null;}
     void show(){
@@ -25,10 +29,10 @@ final class AppOpening {
         overlay.setFocusableInTouchMode(true);overlay.setClickable(true);overlay.setContentDescription("NicoFlix");overlay.setOnClickListener(v->dismiss());
         View lights=new View(activity){
             final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);float progress;
-            {lightAnimation=ValueAnimator.ofFloat(0,1);lightAnimation.setDuration(2300);lightAnimation.addUpdateListener(a->{progress=(float)a.getAnimatedValue();invalidate();});}
+            {lightAnimation=ValueAnimator.ofFloat(0,1);lightAnimation.setDuration(3900);lightAnimation.addUpdateListener(a->{progress=(float)a.getAnimatedValue();invalidate();});}
             @Override protected void onDraw(Canvas canvas){
                 float intensity=(float)Math.sin(Math.PI*progress);int width=getWidth(),height=getHeight();
-                for(int n=0;n<29;n++){float offset=(n-14)/14f;float x=width/2f+offset*width*(.09f+progress*.65f);int alpha=(int)(intensity*(1-Math.abs(offset)*.6f)*95);paint.setShader(new LinearGradient(0,0,0,height,new int[]{Color.TRANSPARENT,Color.argb(alpha,112,240,202),Color.TRANSPARENT},null,Shader.TileMode.CLAMP));canvas.drawRect(x-dp(1+n%3),0,x+dp(1+n%3),height,paint);}
+                for(int n=0;n<29;n++){float offset=(n-14)/14f;float x=width/2f+offset*width*(.09f+progress*.65f);int alpha=(int)(intensity*(1-Math.abs(offset)*.6f)*95);paint.setShader(new LinearGradient(0,0,0,height,new int[]{Color.TRANSPARENT,Color.argb(alpha,124,159,181),Color.TRANSPARENT},null,Shader.TileMode.CLAMP));canvas.drawRect(x-dp(1+n%3),0,x+dp(1+n%3),height,paint);}
                 paint.setShader(null);
             }
         };overlay.addView(lights,new FrameLayout.LayoutParams(-1,-1));
@@ -39,11 +43,22 @@ final class AppOpening {
         mark.setAlpha(0f);mark.setScaleX(.7f);mark.setScaleY(.7f);
         mark.animate().alpha(1).scaleX(1).scaleY(1).setDuration(900).setInterpolator(new DecelerateInterpolator()).start();
         name.setAlpha(0);name.setTranslationY(dp(12));name.animate().alpha(1).translationY(0).setStartDelay(550).setDuration(650).start();
-        lightAnimation.start();
-        overlay.postDelayed(()->{if(overlay!=null){brand.animate().scaleX(1.12f).scaleY(1.12f).alpha(0).setDuration(380).start();dismiss();}},2400);
+        lightAnimation.start();startSound();
+        overlay.postDelayed(()->{if(overlay!=null){brand.animate().scaleX(1.12f).scaleY(1.12f).alpha(0).setDuration(380).start();dismiss();}},4050);
     }
+    private void startSound(){
+        try{
+            android.media.AudioAttributes attributes=new android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_MEDIA).setContentType(android.media.AudioAttributes.CONTENT_TYPE_MUSIC).build();
+            audioManager=(android.media.AudioManager)activity.getSystemService(android.content.Context.AUDIO_SERVICE);
+            audioFocus=new android.media.AudioFocusRequest.Builder(android.media.AudioManager.AUDIOFOCUS_GAIN_TRANSIENT).setAudioAttributes(attributes).setOnAudioFocusChangeListener(change->{if(change<0)dismiss();}).build();
+            if(audioManager.requestAudioFocus(audioFocus)!=android.media.AudioManager.AUDIOFOCUS_REQUEST_GRANTED)return;
+            sound=android.media.MediaPlayer.create(activity,R.raw.opening_sound,attributes,0);
+            if(sound!=null){sound.setOnCompletionListener(player->stopSound());sound.setOnErrorListener((player,what,extra)->{stopSound();return true;});sound.start();}
+        }catch(RuntimeException ignored){stopSound();}
+    }
+    private void stopSound(){if(sound!=null){sound.release();sound=null;}if(audioManager!=null&&audioFocus!=null){audioManager.abandonAudioFocusRequest(audioFocus);audioFocus=null;}}
     void dismiss(){
-        FrameLayout view=overlay;if(view==null)return;overlay=null;if(lightAnimation!=null){lightAnimation.cancel();lightAnimation=null;}
-        view.animate().alpha(0).setDuration(280).withEndAction(()->{if(view.getParent() instanceof ViewGroup)((ViewGroup)view.getParent()).removeView(view);if(previousFocus!=null&&previousFocus.isAttachedToWindow())previousFocus.requestFocus();else{View content=activity.findViewById(android.R.id.content);content.requestFocus(View.FOCUS_FORWARD);}}).start();
+        stopSound();FrameLayout view=overlay;if(view==null)return;overlay=null;if(lightAnimation!=null){lightAnimation.cancel();lightAnimation=null;}
+        view.animate().alpha(0).setDuration(280).withEndAction(()->{if(view.getParent() instanceof ViewGroup)((ViewGroup)view.getParent()).removeView(view);if(previousFocus!=null&&previousFocus.isAttachedToWindow())previousFocus.requestFocus();else{View content=activity.findViewById(android.R.id.content);content.requestFocus(View.FOCUS_FORWARD);}finished.run();}).start();
     }
 }

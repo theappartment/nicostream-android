@@ -6,7 +6,6 @@ import java.util.*;
 
 /** Explicit row navigation; Android's geometric search can jump across scrolled shelves. */
 final class TvFocusNavigation {
-    private final Map<View,View> remembered=new WeakHashMap<>();
     private final Map<View,View> shelfActions=new WeakHashMap<>();
     private final Set<View> secondary=Collections.newSetFromMap(new WeakHashMap<View,Boolean>());
     void secondary(View group){List<View> controls=new ArrayList<>();leaves(group,controls);secondary.addAll(controls);}
@@ -35,16 +34,11 @@ final class TvFocusNavigation {
         for(int i=groups.size()-1;i>0;i--)if(secondary.contains(groups.get(i).get(0))){groups.get(i-1).addAll(groups.remove(i));}
         for(int r=0;r<groups.size();r++){
             List<View> row=groups.get(r);int column=row.indexOf(focused);if(column<0)continue;
-            remembered.put(row.get(0),focused);
             View target;
             if(horizontal){int next=column+(key==KeyEvent.KEYCODE_DPAD_RIGHT?1:-1);if(next<0||next>=row.size())return true;target=row.get(next);}
             else{
                 int next=r+(key==KeyEvent.KEYCODE_DPAD_DOWN?1:-1);if(next<0||next>=groups.size())return true;
-                List<View> destination=groups.get(next);target=remembered.get(destination.get(0));
-                if(target==null||!destination.contains(target)||secondary.contains(target)){
-                    int primary=0;while(primary<destination.size()&&!secondary.contains(destination.get(primary)))primary++;
-                    target=destination.get(Math.min(column,Math.max(0,primary-1)));
-                }
+                List<View> destination=groups.get(next);target=destination.get(0);
             }
             target.requestFocus();return true;
         }
