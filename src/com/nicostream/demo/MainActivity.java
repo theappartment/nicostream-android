@@ -132,13 +132,8 @@ public class MainActivity extends Activity {
         }finally{c.disconnect();}
     }
     GradientDrawable bg(int color,int radius){GradientDrawable d=new GradientDrawable();d.setColor(color);d.setCornerRadius(dp(radius));return d;}
-    android.graphics.drawable.Drawable focus(){
-        StateListDrawable d=new StateListDrawable();
-        GradientDrawable on=bg(Color.rgb(36,54,58),10);on.setStroke(dp(2),MINT);
-        d.addState(new int[]{android.R.attr.state_focused},on);
-        GradientDrawable pressed=bg(Color.rgb(36,54,58),10);pressed.setStroke(dp(2),MINT);
-        d.addState(new int[]{android.R.attr.state_pressed},pressed);d.addState(new int[]{},bg(PANEL,10));return d;
-    }
+    android.graphics.drawable.Drawable focus(){return focus(PANEL);}
+    android.graphics.drawable.Drawable focus(int idle){return new TvFocusDrawable(getResources().getDisplayMetrics().density,idle);}
     TextView text(String s,int size,int color){TextView t=new TextView(this);t.setText(s);t.setTextSize(size);t.setTextColor(color);t.setFontFeatureSettings("kern");t.setIncludeFontPadding(false);t.setLineSpacing(dp(2),1.04f);t.setPadding(0,dp(4),0,dp(4));return t;}
     TextView title(String s,int size){TextView t=text(s,size,WHITE);t.setTypeface(Typeface.create("sans-serif-medium",0));return t;}
     LinearLayout col(){LinearLayout l=new LinearLayout(this);l.setOrientation(1);l.setClipChildren(false);l.setClipToPadding(false);return l;}
@@ -162,7 +157,7 @@ public class MainActivity extends Activity {
         for(String s:new String[]{"Scopri","Cerca","Catalogo","Preferiti","Impostazioni"}){
             TextView b=button(s,()->{if(s.equals("Impostazioni")){settings();return;}if(s.equals("Cerca")){searchCatalog();return;}if(s.equals("Scopri")){discoverScrollY=0;history.clear();titles.clear();historySections.clear();items=addonRoot;catalogTitle="Stream4me";section=s;focusItem="";home();return;}if(s.equals("Catalogo")){showAddons();return;}section=s;focusItem="";home();});
             b.setTextSize(14);b.setTextColor(activeSection.equals(s)?WHITE:MUTED);b.setPadding(dp(14),dp(7),dp(14),dp(5));b.setMinHeight(dp(40));
-            StateListDrawable tabBackground=new StateListDrawable();GradientDrawable active=bg(Color.rgb(29,46,54),6);active.setStroke(dp(1),MINT);tabBackground.addState(new int[]{android.R.attr.state_focused},active);tabBackground.addState(new int[]{android.R.attr.state_pressed},active);tabBackground.addState(new int[]{},bg(Color.TRANSPARENT,6));b.setBackground(tabBackground);
+            b.setBackground(focus(Color.TRANSPARENT));
             GradientDrawable underline=bg(activeSection.equals(s)?WHITE:Color.TRANSPARENT,1);underline.setSize(dp(20),dp(2));b.setCompoundDrawablePadding(dp(4));b.setCompoundDrawablesWithIntrinsicBounds(null,null,null,underline);
             LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,dp(42));p.setMargins(0,0,dp(6),0);nav.addView(b,p);
         }
@@ -335,7 +330,7 @@ public class MainActivity extends Activity {
     }
     ImageButton carouselArrow(boolean forward){
         ImageButton arrow=new ImageButton(this);arrow.setImageResource(forward?R.drawable.ic_carousel_next:R.drawable.ic_carousel_previous);arrow.setScaleType(ImageView.ScaleType.CENTER);arrow.setPadding(0,0,0,0);arrow.setFocusable(true);arrow.setClickable(true);
-        StateListDrawable background=new StateListDrawable();GradientDrawable selected=bg(Color.argb(22,153,239,202),22);selected.setStroke(dp(1),Color.argb(170,153,239,202));background.addState(new int[]{android.R.attr.state_focused},selected);background.addState(new int[]{android.R.attr.state_pressed},selected);background.addState(new int[]{},bg(Color.TRANSPARENT,22));arrow.setBackground(background);
+        arrow.setBackground(focus(Color.TRANSPARENT));
         arrow.setImageTintList(new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_focused},new int[]{android.R.attr.state_pressed},new int[]{}},new int[]{MINT,MINT,MUTED}));return arrow;
     }
     void discoverHero(JSONObject item){
@@ -387,7 +382,7 @@ public class MainActivity extends Activity {
         int height=228,posterWidth=152,numberWidth=Math.round(height*(rank>=10?1.22f:.82f));
         int inset=Math.round(numberWidth*.78f);
         FrameLayout card=new FrameLayout(this);card.setPadding(dp(4),dp(4),dp(4),dp(4));focusCard(card,item);
-        StateListDrawable highlight=new StateListDrawable();GradientDrawable outline=bg(Color.TRANSPARENT,4);outline.setStroke(dp(2),MINT);highlight.addState(new int[]{android.R.attr.state_focused},outline);highlight.addState(new int[]{android.R.attr.state_pressed},outline);highlight.addState(new int[]{},bg(Color.TRANSPARENT,0));card.setBackground(highlight);
+        card.setBackground(focus(Color.TRANSPARENT));
         card.setContentDescription("Numero "+rank+": "+item.optString("title"));
         View number=new View(this){
             final android.graphics.Paint paint=new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
@@ -432,7 +427,7 @@ public class MainActivity extends Activity {
     }
     void focusCard(View view,JSONObject item){
         view.setBackground(focus());view.setFocusable(true);view.setClickable(true);view.setContentDescription(item.optString("title"));view.setOnClickListener(v->openItem(item));view.setTag(item);view.setOnLongClickListener(v->{if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")){toonActions(item);return true;}return false;});
-        view.setOnFocusChangeListener((v,on)->{boolean episode=item.optString("scAction").equals("episode")||item.optString("addonId").contains("toonitalia")&&item.optBoolean("isPlayable");boolean wide=episode||item.optString("scAction").equals("season");float scale=on&&!wide?1.025f:1f;v.animate().scaleX(scale).scaleY(scale).setDuration(120).start();if(on)focusItem=item.optString("id");});
+        view.setOnFocusChangeListener((v,on)->{v.animate().cancel();v.setScaleX(1f);v.setScaleY(1f);if(on)focusItem=item.optString("id");});
         if(screen.equals("home")&&!section.equals("Scopri")&&item.optString("id").equals(focusItem))view.post(()->{if(view.isAttachedToWindow())view.requestFocus();});
     }
     android.graphics.drawable.Drawable badgePlaceholder(String name){
