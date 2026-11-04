@@ -2,6 +2,6 @@ Schede delle serie ispirate al layout iPad.
 
 - Due colonne: copertina e informazioni a sinistra, stagioni o episodi a destra.
 - Episodi già visibili all’apertura della serie, con anteprima, codice e pulsante di riproduzione.
-- Filtro della stagione sopra la lista degli episodi; apertura sulla stagione da riprendere o sulla prima disponibile.
+- Tutte le stagioni visibili come pulsanti sopra la lista degli episodi; apertura sulla stagione da riprendere o sulla prima disponibile.
 - Punto di ripresa, barra di avanzamento e stato Guardato visibili.
 - Navigazione con telecomando tra le due colonne e ritorno al catalogo mantenuti.
