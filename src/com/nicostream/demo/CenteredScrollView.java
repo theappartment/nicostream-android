@@ -10,7 +10,8 @@ final class CenteredScrollView extends ScrollView {
     private View pending;
     private final Runnable center=()->{
         View target=pending;if(target==null||!target.isAttachedToWindow()||!target.hasFocus())return;
-        Rect bounds=new Rect();target.getDrawingRect(bounds);offsetDescendantRectToMyCoords(target,bounds);
+        View anchor=target;for(android.view.ViewParent parent=target.getParent();parent instanceof View&&parent!=this;parent=parent.getParent()){View ancestor=(View)parent;if("tv-focus-anchor".equals(ancestor.getTag())){anchor=ancestor;break;}}
+        Rect bounds=new Rect();anchor.getDrawingRect(bounds);offsetDescendantRectToMyCoords(anchor,bounds);
         int destination=Math.max(0,bounds.centerY()-getHeight()/2);
         smoothScrollTo(0,destination);
     };

@@ -1,8 +1,6 @@
-Una nuova apertura per NicoStream.
+Hero cinematografica con locandina verticale.
 
-- Breve animazione del logo e del nome, saltabile con il telecomando.
-- Home subito disponibile: eliminato il caricamento Stream4me all’avvio.
-- Palette più scura, tipografia e pulsanti uniformi, selezione più nitida.
-- Hero più ampia, sfumature cinematografiche e dettagli dei titoli ridisegnati.
-- Caricamenti dei cataloghi più discreti e coerenti con il resto dell’app.
-- La riga selezionata viene centrata in altezza, con spazio per il bordo e l’ingrandimento.
+- Hero più alta, con trailer sullo sfondo e copertina verticale in primo piano.
+- Titolo, metadati e descrizione con più spazio e contrasto.
+- Sfumature e cornice della locandina rifinite.
+- Azioni e navigazione con telecomando mantenute.
