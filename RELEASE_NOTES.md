@@ -1,6 +1,5 @@
-NicoFlix.
+Header più leggibile.
 
-- Nuovo nome dell’app e apertura animata con il simbolo originale e fasci di luce.
-- Program Feed nella home aggiornato ogni 15 minuti.
-- Indietro nella home torna al primo elemento, poi chiede conferma prima di uscire.
-- Dati, preferiti e accesso al server conservati.
+- Icone sottili accanto alle voci del menu.
+- Sezione attiva indicata con una piccola linea verde menta.
+- Stesso header compatto, con testi e navigazione da telecomando.

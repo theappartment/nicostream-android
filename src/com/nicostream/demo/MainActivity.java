@@ -166,7 +166,9 @@ public class MainActivity extends Activity {
             TextView b=button(s,()->{if(s.equals("Impostazioni")){settings();return;}if(s.equals("Cerca")){searchCatalog();return;}if(s.equals("Scopri")){discoverScrollY=0;history.clear();titles.clear();historySections.clear();items=addonRoot;catalogTitle="Stream4me";section=s;focusItem="";home();return;}if(s.equals("Catalogo")){showAddons();return;}section=s;focusItem="";home();});
             b.setTextSize(14);b.setTextColor(activeSection.equals(s)?WHITE:MUTED);b.setPadding(dp(14),dp(7),dp(14),dp(5));b.setMinHeight(dp(40));
             b.setBackground(focus(Color.TRANSPARENT));
-            GradientDrawable underline=bg(activeSection.equals(s)?WHITE:Color.TRANSPARENT,1);underline.setSize(dp(20),dp(2));b.setCompoundDrawablePadding(dp(4));b.setCompoundDrawablesWithIntrinsicBounds(null,null,null,underline);
+            int iconId=s.equals("Scopri")?R.drawable.ic_nav_discover:s.equals("Cerca")?R.drawable.ic_nav_search:s.equals("Catalogo")?R.drawable.ic_nav_catalog:s.equals("Preferiti")?R.drawable.ic_nav_favorites:R.drawable.ic_nav_settings;
+            android.graphics.drawable.Drawable icon=getDrawable(iconId).mutate();icon.setTint(activeSection.equals(s)?WHITE:MUTED);
+            GradientDrawable underline=bg(activeSection.equals(s)?MINT:Color.TRANSPARENT,1);underline.setSize(dp(20),dp(2));b.setCompoundDrawablePadding(dp(7));b.setCompoundDrawablesWithIntrinsicBounds(icon,null,null,underline);b.setContentDescription(s);
             LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,dp(42));p.setMargins(0,0,dp(6),0);nav.addView(b,p);
         }
         menu.addView(nav);root.addView(menu);space(root,8);
