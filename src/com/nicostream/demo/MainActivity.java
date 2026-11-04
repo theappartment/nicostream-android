@@ -306,7 +306,7 @@ public class MainActivity extends Activity {
         int viewport=getResources().getDisplayMetrics().widthPixels-dp(52);
         boolean compact=viewport<dp(720);int posterWidth=compact?112:148,posterHeight=posterWidth*3/2;
         FrameLayout hero=new FrameLayout(this);hero.setTag("tv-focus-anchor");hero.setClipChildren(false);hero.setClipToPadding(false);
-        FrameLayout backdrop=new FrameLayout(this);backdrop.setBackground(bg(PANEL,14));backdrop.setClipToOutline(true);FrameLayout.LayoutParams backdropParams=new FrameLayout.LayoutParams(-1,dp(350));backdropParams.leftMargin=Math.round(viewport*(compact?.32f:.38f));hero.addView(backdrop,backdropParams);
+        FrameLayout backdrop=new FrameLayout(this);backdrop.setBackground(bg(PANEL,14));backdrop.setClipToOutline(true);FrameLayout.LayoutParams backdropParams=new FrameLayout.LayoutParams(-1,dp(350));hero.addView(backdrop,backdropParams);
         String image=item.optString("backdrop");if(image.isEmpty())image=item.optString("thumb");if(image.isEmpty())image=item.optString("art");
         backdrop.addView(artwork(image,-1,350),new FrameLayout.LayoutParams(-1,-1));
         String preview=item.optString("previewURL");if(HeroPreviewResolver.allowed(preview)){

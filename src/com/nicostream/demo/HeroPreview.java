@@ -61,15 +61,19 @@ final class HeroPreview {
             while(top<limit&&blackRow(frame,top))top++;
             while(bottom<limit&&blackRow(frame,height-1-bottom))bottom++;
             if(top<2||bottom<2||top>=limit||bottom>=limit||Math.abs(top-bottom)>2)return;
-            float zoom=(float)height/(height-top-bottom);android.util.Log.i("NicoStreamPreview","COVER sourceAspect="+videoAspect+" margins="+top+","+bottom+" sampleHeight="+height);if(zoom>letterboxZoom){letterboxZoom=Math.min(1.9f,zoom);updateCover();}
+            android.view.View viewport=(android.view.View)surface.getParent();float baseHeight=Math.max(viewport.getHeight(),viewport.getWidth()/videoAspect);float activeFraction=(float)(height-top-bottom)/height;float zoom=viewport.getHeight()/(baseHeight*activeFraction);if(zoom>letterboxZoom){letterboxZoom=Math.min(1.9f,zoom);updateCover();}
         }finally{frame.recycle();}
     }
     void updateCover(){
-        if(videoAspect<=0||surface.getWidth()<=0||surface.getHeight()<=0)return;
-        // TextureView initially stretches the frame; expand one axis to restore its
-        // aspect ratio and center-crop to the whole hero viewport, also after layout.
-        float viewport=(float)surface.getWidth()/surface.getHeight();Matrix transform=new Matrix();
-        transform.setScale(letterboxZoom*Math.max(1f,videoAspect/viewport),letterboxZoom*Math.max(1f,viewport/videoAspect),surface.getWidth()/2f,surface.getHeight()/2f);surface.setTransform(transform);
+        if(videoAspect<=0||!(surface.getParent() instanceof android.view.View))return;
+        android.view.View viewport=(android.view.View)surface.getParent();if(viewport.getWidth()<=0||viewport.getHeight()<=0)return;
+        // Give the video its natural aspect ratio, then physically enlarge and
+        // center it inside the clipped frame. This avoids decoder/texture scaling
+        // introducing bars when the hero is much wider than the source video.
+        float height=Math.max(viewport.getHeight(),viewport.getWidth()/videoAspect)*letterboxZoom;
+        int targetWidth=(int)Math.ceil(height*videoAspect),targetHeight=(int)Math.ceil(height);
+        android.view.ViewGroup.LayoutParams existing=surface.getLayoutParams();
+        if(existing.width!=targetWidth||existing.height!=targetHeight){surface.setTransform(new Matrix());surface.setLayoutParams(new android.widget.FrameLayout.LayoutParams(targetWidth,targetHeight,android.view.Gravity.CENTER));}
     }
     void stop(boolean reset){generation++;scheduled=false;firstFrame=false;progressLogged=false;surface.animate().cancel();surface.setAlpha(0);if(player!=null){ExoPlayer previous=player;player=null;previous.release();android.util.Log.i("NicoStreamPreview","STOPPED");}if(reset)attempted=false;}
     void setActive(boolean value){active=value;if(!value)stop(true);}
