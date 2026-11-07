@@ -273,7 +273,8 @@ public class MainActivity extends Activity {
         }
         if(server().isEmpty())return;
         if(!discoverError.isEmpty())body.addView(button("Riprova",()->refreshSourceIndex(true,()->loadDiscover(true))));
-        addGenreShelf(movies?"FILM":"SERIE TV");
+        addMediaGenreRows(movies?"FILM":"SERIE TV");
+        addGenreShelf();
         body.addView(title("ToonItalia",22));
         LinearLayout categories=new LinearLayout(this);
         if(movies)addToonCategory(categories,"Film di animazione","film-animazione");
@@ -414,13 +415,63 @@ public class MainActivity extends Activity {
             if(ranked==(pass==0)){discoverRail(rail.optString("title"),rail.optJSONArray("items"),ranked);if(rail.optString("id").equals("latest")&&doomsdaySlot==null)addDoomsday();}
         }
         if(doomsdaySlot==null)addDoomsday();
-        addGenreShelf("");
+        addGenreShelf();
         if(rails==null||rails.length()==0){body.addView(text(discoverError.isEmpty()?providerOrigin().isEmpty()?"Preparazione automatica dei suggerimenti…":"Caricamento dei titoli…":discoverError,14,MUTED));if(!discoverError.isEmpty())body.addView(button("Riprova",()->refreshSourceIndex(true,()->loadDiscover(true))));}
         else{LinearLayout footer=new LinearLayout(this);footer.addView(text("Scopri qualcosa di nuovo, oppure riparti da dove eri rimasto.",12,MUTED),new LinearLayout.LayoutParams(0,-2,1));footer.addView(button("Aggiorna",()->{refreshSourceIndex(true,()->loadDiscover(true));loadProgramHome(true);}));body.addView(footer);if(!discoverError.isEmpty())body.addView(text(discoverError,12,MUTED));}
         if(server().isEmpty()&&(rails==null||rails.length()==0))for(int i=0;i<items.length();i++){JSONObject item=items.optJSONObject(i);if(item!=null)body.addView(card(item));}
         space(body,20);
     }
-    void addGenreShelf(String mediaTag){
+    final Map<String,JSONArray> mediaGenrePages=new HashMap<>();
+    JSONObject mediaGenreFeed;
+    void addMediaGenreRows(String mediaTag){
+        JSONArray genres=discoverFeed==null?null:discoverFeed.optJSONArray("genres");
+        String origin=providerOrigin();
+        if(genres==null||origin.isEmpty())return;
+        if(mediaGenreFeed!=discoverFeed){mediaGenrePages.clear();mediaGenreFeed=discoverFeed;}
+        Map<String,JSONObject> byName=new HashMap<>();
+        for(int i=0;i<genres.length();i++){
+            JSONObject genre=genres.optJSONObject(i);
+            if(genre!=null&&genre.optInt("id")>0)byName.put(genre.optString("name").toLowerCase(Locale.ROOT),genre);
+        }
+        boolean series=mediaTag.equals("SERIE TV");
+        String[] names={"commedia",series?"action & adventure":"azione","dramma","crime","animazione","fantascienza","thriller","documentario"};
+        LinearLayout genreRows=col();
+        body.addView(genreRows);
+        List<JSONObject> pending=new ArrayList<>();
+        for(String name:names){
+            JSONObject genre=byName.get(name);
+            if(genre==null)continue;
+            pending.add(genre);
+        }
+        loadMediaGenre(genreRows,pending,0,origin,mediaTag,WebSettings.getDefaultUserAgent(this),mediaGenreFeed);
+    }
+    void loadMediaGenre(LinearLayout rows,List<JSONObject> genres,int index,String origin,String mediaTag,String ua,JSONObject feed){
+        if(index>=genres.size())return;
+        JSONObject genre=genres.get(index);
+        String url=origin+"/it/archive?genre%5B%5D="+genre.optInt("id");
+        JSONArray cached=mediaGenrePages.get(url);
+        if(cached!=null){
+            discoverRail(rows,genre.optString("name"),StreamingCommunityCatalog.filterByTag(cached,mediaTag),false);
+            loadMediaGenre(rows,genres,index+1,origin,mediaTag,ua,feed);
+            return;
+        }
+        worker.execute(()->{
+            JSONArray result=null;
+            try{
+                JSONObject page=scPage(url,ua);
+                result=StreamingCommunityCatalog.titles(page,page.optString("_sourceOrigin",origin));
+            }catch(Exception ignored){}
+            JSONArray titles=result;
+            main.post(()->{
+                if(!alive||feed!=mediaGenreFeed||!origin.equals(providerOrigin()))return;
+                if(titles!=null)mediaGenrePages.put(url,titles);
+                if(!rows.isAttachedToWindow()||!mediaSection()||!screen.equals("home"))return;
+                if(titles!=null)discoverRail(rows,genre.optString("name"),StreamingCommunityCatalog.filterByTag(titles,mediaTag),false);
+                loadMediaGenre(rows,genres,index+1,origin,mediaTag,ua,feed);
+            });
+        });
+    }
+    void addGenreShelf(){
         JSONArray genres=discoverFeed==null?null:discoverFeed.optJSONArray("genres");
         String origin=providerOrigin();
         if(genres==null||origin.isEmpty())return;
@@ -435,7 +486,7 @@ public class MainActivity extends Activity {
             try{
                 JSONObject item=StreamingCommunityCatalog.entry(name,
                     origin+"/it/archive?genre%5B%5D="+genre.optInt("id"),"collection");
-                if(!mediaTag.isEmpty())item.put("collectionMediaTag",mediaTag).put("title",section+" · "+name);
+                if(mediaSection())item.put("collectionMediaTag",section.equals("Film")?"FILM":"SERIE TV").put("title",section+" · "+name);
                 LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,-2);
                 params.setMargins(0,dp(8),dp(10),dp(16));
                 row.addView(button(name,()->scCatalog(item)),params);
@@ -498,11 +549,12 @@ public class MainActivity extends Activity {
     HorizontalScrollView tvShelf(){
         HorizontalScrollView shelf=new HorizontalScrollView(this);shelf.setClipChildren(false);shelf.setClipToPadding(false);shelf.setPadding(dp(10),dp(12),dp(10),dp(12));shelf.setHorizontalScrollBarEnabled(false);return shelf;
     }
-    void discoverRail(String label,JSONArray list,boolean ranked){
-        if(list==null||list.length()==0)return;LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);if(label.equals(DoomsdayCollection.LABEL)){FrameLayout logoFrame=new FrameLayout(this);ImageView logo=new ImageView(this);logo.setImageResource(R.drawable.doomsday_logo);logo.setScaleType(ImageView.ScaleType.FIT_START);logo.setContentDescription("Avengers Doomsday");logoFrame.addView(logo,new FrameLayout.LayoutParams(dp(235),dp(90),Gravity.LEFT|Gravity.CENTER_VERTICAL));heading.addView(logoFrame,new LinearLayout.LayoutParams(0,dp(94),1));}else heading.addView(title(label,22),new LinearLayout.LayoutParams(0,-2,1));heading.addView(button("Vedi tutti",()->{if(label.equals(DoomsdayCollection.LABEL)){showMarvelGuide();return;}pushHistory();items=list;catalogTitle=label;section="Catalogo";focusItem="";home();}));if(label.equals(DoomsdayCollection.LABEL))heading.getChildAt(1).setBackground(DoomTheme.focus(getResources().getDisplayMetrics().density));body.addView(heading);space(body,8);
+    void discoverRail(String label,JSONArray list,boolean ranked){discoverRail(body,label,list,ranked);}
+    void discoverRail(LinearLayout parent,String label,JSONArray list,boolean ranked){
+        if(list==null||list.length()==0)return;LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);if(label.equals(DoomsdayCollection.LABEL)){FrameLayout logoFrame=new FrameLayout(this);ImageView logo=new ImageView(this);logo.setImageResource(R.drawable.doomsday_logo);logo.setScaleType(ImageView.ScaleType.FIT_START);logo.setContentDescription("Avengers Doomsday");logoFrame.addView(logo,new FrameLayout.LayoutParams(dp(235),dp(90),Gravity.LEFT|Gravity.CENTER_VERTICAL));heading.addView(logoFrame,new LinearLayout.LayoutParams(0,dp(94),1));}else heading.addView(title(label,22),new LinearLayout.LayoutParams(0,-2,1));heading.addView(button("Vedi tutti",()->{if(label.equals(DoomsdayCollection.LABEL)){showMarvelGuide();return;}pushHistory();items=list;catalogTitle=label;section="Catalogo";focusItem="";home();}));if(label.equals(DoomsdayCollection.LABEL))heading.getChildAt(1).setBackground(DoomTheme.focus(getResources().getDisplayMetrics().density));parent.addView(heading);space(parent,8);
         HorizontalScrollView scroll=tvShelf();scroll.setClipToPadding(false);scroll.setPadding(dp(10),dp(12),dp(10),dp(12));scroll.setHorizontalScrollBarEnabled(false);LinearLayout row=new LinearLayout(this);row.setClipChildren(false);row.setClipToPadding(false);
         for(int n=0;n<Math.min(12,list.length());n++){JSONObject item=list.optJSONObject(n);if(item==null)continue;View tile=ranked?rankedCard(item,n+1):card(item);if(label.equals(DoomsdayCollection.LABEL))tile.setBackground(DoomTheme.focus(getResources().getDisplayMetrics().density));row.addView(tile);}
-        scroll.addView(row);tvFocus.shelf(scroll,heading.getChildAt(1));if(!mediaSection()){scroll.setOnScrollChangeListener((View.OnScrollChangeListener)(v,x,y,oldX,oldY)->discoverRowOffsets.put(label,x));scroll.post(()->scroll.scrollTo(discoverRowOffsets.getOrDefault(label,0),0));}body.addView(scroll);space(body,20);
+        scroll.addView(row);tvFocus.shelf(scroll,heading.getChildAt(1));if(!mediaSection()){scroll.setOnScrollChangeListener((View.OnScrollChangeListener)(v,x,y,oldX,oldY)->discoverRowOffsets.put(label,x));scroll.post(()->scroll.scrollTo(discoverRowOffsets.getOrDefault(label,0),0));}parent.addView(scroll);space(parent,20);
     }
     View rankedCard(JSONObject item,int rank){
         // Match iPad: an outlined number behind a 2:3 poster, with wider space for 10.

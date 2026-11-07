@@ -1,6 +1,4 @@
-NicoFlix 0.11.0
+NicoFlix 0.11.1
 
-- Nuove schede Film e Serie TV nel menu principale.
-- Raccolte Aggiunti di recente e I titoli del momento filtrate per categoria.
-- Esplora per genere con griglia di copertine dal catalogo StreamingCommunity.
-- Accessi ToonItalia per film di animazione, serie TV e anime.
+- Righe di copertine per genere nelle schede Film e Serie TV.
+- Commedia e Azione in evidenza, con accesso alla griglia da Vedi tutti.
