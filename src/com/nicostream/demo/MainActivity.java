@@ -412,14 +412,18 @@ public class MainActivity extends Activity {
         if(rails!=null)for(int pass=0;pass<2;pass++)for(int i=0;i<rails.length();i++){
             JSONObject rail=rails.optJSONObject(i);if(rail==null)continue;
             boolean ranked=rail.optString("id").equals("top10");
-            if(ranked==(pass==0)){discoverRail(rail.optString("title"),rail.optJSONArray("items"),ranked);if(rail.optString("id").equals("latest")&&doomsdaySlot==null)addDoomsday();}
+            if(ranked==(pass==0)){discoverRail(rail.optString("title"),rail.optJSONArray("items"),ranked);if(rail.optString("id").equals("latest")&&doomsdaySlot==null)addHomeGenresAndDoomsday();}
         }
-        if(doomsdaySlot==null)addDoomsday();
+        if(doomsdaySlot==null)addHomeGenresAndDoomsday();
         addGenreShelf();
         if(rails==null||rails.length()==0){body.addView(text(discoverError.isEmpty()?providerOrigin().isEmpty()?"Preparazione automatica dei suggerimenti…":"Caricamento dei titoli…":discoverError,14,MUTED));if(!discoverError.isEmpty())body.addView(button("Riprova",()->refreshSourceIndex(true,()->loadDiscover(true))));}
         else{LinearLayout footer=new LinearLayout(this);footer.addView(text("Scopri qualcosa di nuovo, oppure riparti da dove eri rimasto.",12,MUTED),new LinearLayout.LayoutParams(0,-2,1));footer.addView(button("Aggiorna",()->{refreshSourceIndex(true,()->loadDiscover(true));loadProgramHome(true);}));body.addView(footer);if(!discoverError.isEmpty())body.addView(text(discoverError,12,MUTED));}
         if(server().isEmpty()&&(rails==null||rails.length()==0))for(int i=0;i<items.length();i++){JSONObject item=items.optJSONObject(i);if(item!=null)body.addView(card(item));}
         space(body,20);
+    }
+    void addHomeGenresAndDoomsday(){
+        addMediaGenreRows("");
+        addDoomsday();
     }
     final Map<String,JSONArray> mediaGenrePages=new HashMap<>();
     JSONObject mediaGenreFeed;
@@ -437,37 +441,57 @@ public class MainActivity extends Activity {
         String[] names={"commedia",series?"action & adventure":"azione","dramma","crime","animazione","fantascienza","thriller","documentario"};
         LinearLayout genreRows=col();
         body.addView(genreRows);
-        List<JSONObject> pending=new ArrayList<>();
+        Map<String,List<Integer>> pending=new LinkedHashMap<>();
         for(String name:names){
             JSONObject genre=byName.get(name);
-            if(genre==null)continue;
-            pending.add(genre);
+            List<Integer> ids=new ArrayList<>();
+            if(genre!=null)ids.add(genre.optInt("id"));
+            if(mediaTag.isEmpty()&&name.equals("azione")&&byName.containsKey("action & adventure")){
+                ids.add(byName.get("action & adventure").optInt("id"));
+            }
+            if(!ids.isEmpty())pending.put(genre==null?"Azione":genre.optString("name"),ids);
         }
-        loadMediaGenre(genreRows,pending,0,origin,mediaTag,WebSettings.getDefaultUserAgent(this),mediaGenreFeed);
+        loadMediaGenre(genreRows,new ArrayList<>(pending.entrySet()),0,origin,mediaTag,
+            WebSettings.getDefaultUserAgent(this),mediaGenreFeed);
     }
-    void loadMediaGenre(LinearLayout rows,List<JSONObject> genres,int index,String origin,String mediaTag,String ua,JSONObject feed){
+    void loadMediaGenre(LinearLayout rows,List<Map.Entry<String,List<Integer>>> genres,int index,String origin,String mediaTag,String ua,JSONObject feed){
         if(index>=genres.size())return;
-        JSONObject genre=genres.get(index);
-        String url=origin+"/it/archive?genre%5B%5D="+genre.optInt("id");
-        JSONArray cached=mediaGenrePages.get(url);
-        if(cached!=null){
-            discoverRail(rows,genre.optString("name"),StreamingCommunityCatalog.filterByTag(cached,mediaTag),false);
-            loadMediaGenre(rows,genres,index+1,origin,mediaTag,ua,feed);
-            return;
+        Map.Entry<String,List<Integer>> genre=genres.get(index);
+        Map<String,JSONArray> pages=new LinkedHashMap<>();
+        for(int id:genre.getValue()){
+            String url=origin+"/it/archive?genre%5B%5D="+id;
+            pages.put(url,mediaGenrePages.get(url));
         }
+        Runnable show=()->{
+            JSONArray titles=new JSONArray();
+            Set<Long> seen=new HashSet<>();
+            for(JSONArray page:pages.values()){
+                if(page==null)continue;
+                for(int i=0;i<page.length();i++){
+                    JSONObject item=page.optJSONObject(i);
+                    if(item!=null&&seen.add(item.optLong("scTitleId")))titles.put(item);
+                }
+            }
+            JSONArray visible=mediaTag.isEmpty()?StreamingCommunityCatalog.mixMoviesAndSeries(titles)
+                :StreamingCommunityCatalog.filterByTag(titles,mediaTag);
+            discoverRail(rows,genre.getKey(),visible,false);
+            loadMediaGenre(rows,genres,index+1,origin,mediaTag,ua,feed);
+        };
+        if(!pages.containsValue(null)){show.run();return;}
         worker.execute(()->{
-            JSONArray result=null;
-            try{
-                JSONObject page=scPage(url,ua);
-                result=StreamingCommunityCatalog.titles(page,page.optString("_sourceOrigin",origin));
-            }catch(Exception ignored){}
-            JSONArray titles=result;
+            for(Map.Entry<String,JSONArray> page:pages.entrySet()){
+                if(page.getValue()!=null)continue;
+                try{
+                    JSONObject props=scPage(page.getKey(),ua);
+                    page.setValue(StreamingCommunityCatalog.titles(props,props.optString("_sourceOrigin",origin)));
+                }catch(Exception ignored){}
+            }
             main.post(()->{
                 if(!alive||feed!=mediaGenreFeed||!origin.equals(providerOrigin()))return;
-                if(titles!=null)mediaGenrePages.put(url,titles);
-                if(!rows.isAttachedToWindow()||!mediaSection()||!screen.equals("home"))return;
-                if(titles!=null)discoverRail(rows,genre.optString("name"),StreamingCommunityCatalog.filterByTag(titles,mediaTag),false);
-                loadMediaGenre(rows,genres,index+1,origin,mediaTag,ua,feed);
+                for(Map.Entry<String,JSONArray> page:pages.entrySet()){
+                    if(page.getValue()!=null)mediaGenrePages.put(page.getKey(),page.getValue());
+                }
+                if(rows.isAttachedToWindow()&&screen.equals("home"))show.run();
             });
         });
     }

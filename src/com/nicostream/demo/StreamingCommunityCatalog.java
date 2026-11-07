@@ -76,6 +76,14 @@ final class StreamingCommunityCatalog {
         }
         return filtered;
     }
+    static JSONArray mixMoviesAndSeries(JSONArray items){
+        JSONArray movies=filterByTag(items,"FILM"),series=filterByTag(items,"SERIE TV"),mixed=new JSONArray();
+        for(int i=0;i<Math.max(movies.length(),series.length());i++){
+            if(i<movies.length())mixed.put(movies.optJSONObject(i));
+            if(i<series.length())mixed.put(series.optJSONObject(i));
+        }
+        return mixed;
+    }
     static JSONObject home(JSONObject props,String origin)throws Exception {
         JSONArray sliders=props.optJSONArray("sliders"),rails=new JSONArray();
         if(sliders!=null)for(int n=0;n<sliders.length();n++){

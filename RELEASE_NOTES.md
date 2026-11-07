@@ -1,4 +1,5 @@
-NicoFlix 0.11.1
+NicoFlix 0.11.2
 
-- Righe di copertine per genere nelle schede Film e Serie TV.
-- Commedia e Azione in evidenza, con accesso alla griglia da Vedi tutti.
+- Righe per genere in Home, dopo Aggiunti di recente e prima di Avengers: Doomsday.
+- Film e serie TV si alternano quando entrambi sono disponibili.
+- La riga Azione raccoglie anche i titoli di Action & Adventure.
