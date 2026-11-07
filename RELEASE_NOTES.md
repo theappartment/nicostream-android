@@ -1,10 +1,6 @@
-NicoFlix 0.10.0
+NicoFlix 0.11.0
 
-- Tema nero e blu, focus header discreto e glow radiale Top 10.
-- Copertine ToonItalia progressive con cache, anche nelle schede delle serie.
-- Ricerca più ampia e navigazione verticale dal primo elemento di ogni riga.
-- Raccolta Doomsday sotto Aggiunti di recente, con logo verde e guida completa.
-- Tappe viste, progresso del percorso e collegamenti diretti ai titoli riconosciuti.
-- Suono personalizzato nell’apertura e card Continua a guardare uniformi.
-- Rimossa la scorciatoia Addon; catalogo nelle Impostazioni.
-- Banner TV esplicito sulla schermata di avvio.
+- Nuove schede Film e Serie TV nel menu principale.
+- Raccolte Aggiunti di recente e I titoli del momento filtrate per categoria.
+- Esplora per genere con griglia di copertine dal catalogo StreamingCommunity.
+- Accessi ToonItalia per film di animazione, serie TV e anime.

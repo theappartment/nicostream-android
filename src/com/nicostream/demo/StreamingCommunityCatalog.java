@@ -31,7 +31,7 @@ final class StreamingCommunityCatalog {
         if(props.getJSONObject("title").getLong("id")!=titleId||props.getJSONObject("episode").getLong("id")!=episodeId)
             throw new IOException("Il sito ha restituito una puntata diversa. Riprova dal catalogo.");
     }
-    static JSONObject entry(String title,String url,String action)throws Exception {
+    static JSONObject entry(String title,String url,String action)throws JSONException {
         return new JSONObject().put("id",url).put("title",title).put("url",url).put("scAction",action).put("symbol","S").put("tag","STREAMINGCOMMUNITY");
     }
     static String artwork(JSONObject props,JSONObject record,String kind){
@@ -66,6 +66,15 @@ final class StreamingCommunityCatalog {
     static JSONArray titles(JSONObject props,String origin)throws Exception {
         JSONArray records=records(props.opt("titles")),out=new JSONArray();java.util.Set<Long> seen=new java.util.HashSet<>();
         for(int n=0;n<records.length();n++){JSONObject record=records.getJSONObject(n);if(record.optLong("id")>0&&seen.add(record.getLong("id")))out.put(titleEntry(record,props,origin));}return out;
+    }
+    static JSONArray filterByTag(JSONArray items,String tag){
+        JSONArray filtered=new JSONArray();
+        if(items==null)return filtered;
+        for(int i=0;i<items.length();i++){
+            JSONObject item=items.optJSONObject(i);
+            if(item!=null&&tag.equals(item.optString("tag")))filtered.put(item);
+        }
+        return filtered;
     }
     static JSONObject home(JSONObject props,String origin)throws Exception {
         JSONArray sliders=props.optJSONArray("sliders"),rails=new JSONArray();

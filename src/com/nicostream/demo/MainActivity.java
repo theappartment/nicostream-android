@@ -164,14 +164,28 @@ public class MainActivity extends Activity {
     }
     void addNavigation(String activeSection){
         HorizontalScrollView menu=new HorizontalScrollView(this);menu.setHorizontalScrollBarEnabled(false);nav=new LinearLayout(this);
-        for(String s:new String[]{"Cerca","Scopri","Preferiti","Impostazioni"}){
-            TextView b=button(s.equals("Scopri")?"Home":s,()->{if(s.equals("Impostazioni")){settings();return;}if(s.equals("Cerca")){searchCatalog();return;}if(s.equals("Scopri")){discoverScrollY=0;history.clear();titles.clear();historySections.clear();items=addonRoot;catalogTitle="Stream4me";section=s;focusItem="";home();return;}if(s.equals("Catalogo")){showAddons();return;}section=s;focusItem="";home();});
+        for(String s:new String[]{"Cerca","Scopri","Film","Serie TV","Preferiti","Impostazioni"}){
+            TextView b=button(s.equals("Scopri")?"Home":s,()->{
+                if(s.equals("Impostazioni")){settings();return;}
+                if(s.equals("Cerca")){searchCatalog();return;}
+                history.clear();titles.clear();historySections.clear();
+                if(s.equals("Scopri"))discoverScrollY=0;
+                items=addonRoot;catalogTitle="Stream4me";section=s;focusItem="";home();
+            });
             b.setTextSize(14);b.setTextColor(activeSection.equals(s)?WHITE:MUTED);b.setPadding(dp(14),dp(7),dp(14),dp(5));b.setMinHeight(dp(40));
             StateListDrawable navFocus=new StateListDrawable();
             GradientDrawable illuminated=new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,new int[]{Color.argb(25,224,235,243),Color.argb(10,224,235,243)});illuminated.setCornerRadius(dp(8));
             navFocus.addState(new int[]{android.R.attr.state_pressed},bg(Color.argb(35,224,235,243),8));navFocus.addState(new int[]{android.R.attr.state_focused},illuminated);navFocus.addState(new int[]{},bg(Color.TRANSPARENT,8));navFocus.setEnterFadeDuration(140);navFocus.setExitFadeDuration(140);b.setBackground(navFocus);
             android.content.res.ColorStateList navColors=new android.content.res.ColorStateList(new int[][]{new int[]{android.R.attr.state_focused},new int[]{android.R.attr.state_pressed},new int[]{}},new int[]{WHITE,WHITE,activeSection.equals(s)?WHITE:MUTED});b.setTextColor(navColors);
-            int iconId=s.equals("Scopri")?R.drawable.ic_nav_discover:s.equals("Cerca")?R.drawable.ic_nav_search:s.equals("Catalogo")?R.drawable.ic_nav_catalog:s.equals("Preferiti")?R.drawable.ic_nav_favorites:R.drawable.ic_nav_settings;
+            int iconId;
+            switch(s){
+                case "Cerca": iconId=R.drawable.ic_nav_search;break;
+                case "Scopri": iconId=R.drawable.ic_nav_discover;break;
+                case "Film": iconId=R.drawable.ic_nav_movies;break;
+                case "Serie TV": iconId=R.drawable.ic_nav_series;break;
+                case "Preferiti": iconId=R.drawable.ic_nav_favorites;break;
+                default: iconId=R.drawable.ic_nav_settings;
+            }
             android.graphics.drawable.Drawable icon=getDrawable(iconId).mutate();icon.setTintList(navColors);
             GradientDrawable underline=bg(activeSection.equals(s)?MINT:Color.TRANSPARENT,1);underline.setSize(dp(20),dp(2));b.setCompoundDrawablePadding(dp(7));b.setCompoundDrawablesWithIntrinsicBounds(icon,null,null,underline);b.setContentDescription(s.equals("Scopri")?"Home":s);
             LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-2,dp(42));p.setMargins(0,0,dp(6),0);nav.addView(b,p);
@@ -187,6 +201,12 @@ public class MainActivity extends Activity {
         if(section.equals("Scopri")){
             discoverBody=body;discoverScroll=scroll;renderDiscover();loadDiscover(false);refreshSourceIndex(false,null);loadProgramHome(false);if(updates!=null)updates.maybeCheck();scroll.post(()->scroll.scrollTo(0,discoverScrollY));
             root.post(()->{if(root.findFocus()==null)nav.getChildAt(1).requestFocus();});return;
+        }
+        if(mediaSection()){
+            renderMediaSection();
+            nav.getChildAt(section.equals("Film")?2:3).requestFocus();
+            refreshSourceIndex(false,()->loadDiscover(false));
+            return;
         }
         if(section.equals("Cerca")){String query=prefs.getString("lastSearchQuery","");if(!query.isEmpty()){body.addView(button("⌕ "+query+" · Modifica ricerca",()->searchCatalog(query)),new LinearLayout.LayoutParams(-2,-2));space(body,12);}}
         LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);
@@ -225,7 +245,61 @@ public class MainActivity extends Activity {
         }
         if(count==0)body.addView(text(section.equals("Preferiti")?"Nessun preferito. Aggiungi un contenuto dalla sua scheda.":"Nessun titolo trovato. Prova con un’altra ricerca.",16,MUTED));
         space(body,18);body.addView(text("Frecce per navigare · OK per scegliere · Indietro per tornare",11,MUTED));
-        root.post(()->{if(root.findFocus()==null)nav.getChildAt(section.equals("Cerca")?0:section.equals("Catalogo")?3:section.equals("Preferiti")?2:1).requestFocus();});
+        root.post(()->{if(root.findFocus()==null)nav.getChildAt(section.equals("Cerca")?0:section.equals("Preferiti")?4:1).requestFocus();});
+    }
+    boolean mediaSectionHasTitles;
+    boolean mediaSection(){return section.equals("Film")||section.equals("Serie TV");}
+    void renderMediaSection(){
+        body.removeAllViews();
+        boolean movies=section.equals("Film");
+        body.addView(title(section,28));space(body,12);
+        JSONArray rails=discoverFeed==null?null:discoverFeed.optJSONArray("rails");
+        boolean hasTitles=false;
+        for(String id:new String[]{"latest","trending"}){
+            if(rails==null)break;
+            for(int i=0;i<rails.length();i++){
+                JSONObject rail=rails.optJSONObject(i);
+                if(rail==null||!id.equals(rail.optString("id")))continue;
+                JSONArray filtered=StreamingCommunityCatalog.filterByTag(rail.optJSONArray("items"),movies?"FILM":"SERIE TV");
+                if(filtered.length()>0){discoverRail(rail.optString("title"),filtered,false);hasTitles=true;}
+            }
+        }
+        mediaSectionHasTitles=hasTitles;
+        if(!hasTitles){
+            String status=server().isEmpty()?"Collega il server dalle Impostazioni."
+                :!discoverError.isEmpty()?discoverError
+                :discoverLoading||rails==null?"Caricamento dei titoli…":"Nessun titolo in queste raccolte.";
+            body.addView(text(status,15,MUTED));
+        }
+        if(server().isEmpty())return;
+        if(!discoverError.isEmpty())body.addView(button("Riprova",()->refreshSourceIndex(true,()->loadDiscover(true))));
+        addGenreShelf(movies?"FILM":"SERIE TV");
+        body.addView(title("ToonItalia",22));
+        LinearLayout categories=new LinearLayout(this);
+        if(movies)addToonCategory(categories,"Film di animazione","film-animazione");
+        else{
+            addToonCategory(categories,"Serie TV","serie-tv");
+            addToonCategory(categories,"Anime in italiano","anime-ita");
+            addToonCategory(categories,"Anime sottotitolati","anime-sub-ita");
+        }
+        body.addView(categories);
+    }
+    void addToonCategory(LinearLayout row,String label,String category){
+        TextView entry=button(label,()->{
+            JSONObject item=new JSONObject();
+            try{item.put("title",label).put("url","plugin://plugin.video.nikod.toonitalia/?action=catalog&category="+category);}
+            catch(JSONException impossible){throw new IllegalStateException(impossible);}
+            action(item);
+        });
+        LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,-2);params.rightMargin=dp(10);
+        row.addView(entry,params);
+    }
+    void refreshMediaSection(){
+        if(!screen.equals("home")||!mediaSection())return;
+        if(!body.hasFocus()){renderMediaSection();return;}
+        if(mediaSectionHasTitles)return;
+        View active=nav.getChildAt(section.equals("Film")?2:3);
+        renderMediaSection();active.requestFocus();
     }
     String safeMetadata(JSONObject item){try{return StreamingCommunityCatalog.publicMetadata(item).toString();}catch(Exception e){return "{}";}}
     void refreshSourceIndex(boolean force,Runnable after){
@@ -241,6 +315,10 @@ public class MainActivity extends Activity {
     }
     void finishSourceIndex(){
         sourceIndexLoading=false;if(sourceDomainStatus!=null&&sourceDomainStatus.isAttachedToWindow())sourceDomainStatus.setText("StreamingCommunity: "+(providerOrigin().isEmpty()?"dominio non disponibile":Uri.parse(providerOrigin()).getHost())+(sourceIndexWarning?" · ultima copia valida":""));ArrayList<Runnable> ready=new ArrayList<>(sourceIndexWaiters);sourceIndexWaiters.clear();for(Runnable task:ready)task.run();
+        if(screen.equals("home")&&mediaSection()&&providerOrigin().isEmpty()&&sourceIndexWarning){
+            discoverError="Connessione alle sorgenti temporaneamente non disponibile.";
+            refreshMediaSection();
+        }
         if(screen.equals("home")&&section.equals("Scopri")){
             if(providerOrigin().isEmpty()){
                 if(sourceIndexWarning)discoverError="Connessione alle sorgenti temporaneamente non disponibile.";
@@ -275,8 +353,8 @@ public class MainActivity extends Activity {
         String origin=providerOrigin();if(sourceIndexLoading||server().isEmpty()||origin.isEmpty()||discoverLoading||(!force&&discoverFeed!=null&&discoverFeed.optJSONArray("rails")!=null&&System.currentTimeMillis()-discoverUpdated<600000))return;
         discoverLoading=true;discoverError="";final String ua=WebSettings.getDefaultUserAgent(this);
         worker.execute(()->{try{JSONObject page=scPage(origin+"/it",ua);JSONObject feed=StreamingCommunityCatalog.home(page,page.optString("_sourceOrigin",origin));if(feed.getJSONArray("rails").length()==0)throw new IOException("Nessuna raccolta disponibile");
-            main.post(()->{if(!alive)return;discoverLoading=false;if(!origin.equals(providerOrigin())){if(screen.equals("home")&&section.equals("Scopri"))loadDiscover(true);return;}discoverFeed=feed;discoverUpdated=System.currentTimeMillis();prefs.edit().putString("discoverFeed",safeMetadata(feed)).putInt("discoverVersion",1).putLong("discoverUpdated",discoverUpdated).apply();if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body){boolean browsing=body.hasFocus();if(!browsing||force){renderDiscover();if(force)nav.getChildAt(1).requestFocus();}else{TextView update=button("Nuovi titoli disponibili · Aggiorna",()->{focusItem="";home();});body.addView(update,0);}}enrichHero(feed);});
-        }catch(Exception e){main.post(()->{if(!alive)return;discoverLoading=false;if(!origin.equals(providerOrigin())){if(screen.equals("home")&&section.equals("Scopri"))loadDiscover(true);return;}discoverError="Non riesco ad aggiornare i titoli. Puoi riprovare o usare Cerca.";if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body&&(!body.hasFocus()||force)){renderDiscover();if(force)nav.getChildAt(1).requestFocus();}});}});
+            main.post(()->{if(!alive)return;discoverLoading=false;if(!origin.equals(providerOrigin())){if(screen.equals("home")&&(section.equals("Scopri")||mediaSection()))loadDiscover(true);return;}discoverFeed=feed;discoverUpdated=System.currentTimeMillis();prefs.edit().putString("discoverFeed",safeMetadata(feed)).putInt("discoverVersion",1).putLong("discoverUpdated",discoverUpdated).apply();if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body){boolean browsing=body.hasFocus();if(!browsing||force){renderDiscover();if(force)nav.getChildAt(1).requestFocus();}else{TextView update=button("Nuovi titoli disponibili · Aggiorna",()->{focusItem="";home();});body.addView(update,0);}}refreshMediaSection();enrichHero(feed);});
+        }catch(Exception e){main.post(()->{if(!alive)return;discoverLoading=false;if(!origin.equals(providerOrigin())){if(screen.equals("home")&&(section.equals("Scopri")||mediaSection()))loadDiscover(true);return;}discoverError="Non riesco ad aggiornare i titoli. Puoi riprovare o usare Cerca.";if(screen.equals("home")&&section.equals("Scopri")&&discoverBody==body&&(!body.hasFocus()||force)){renderDiscover();if(force)nav.getChildAt(1).requestFocus();}refreshMediaSection();});}});
     }
     void enrichHero(JSONObject feed){
         final long revision=++heroEnrichmentGeneration;final String origin=providerOrigin(),ua=WebSettings.getDefaultUserAgent(this);final JSONArray titles=HeroSelection.topTen(feed);
@@ -336,16 +414,36 @@ public class MainActivity extends Activity {
             if(ranked==(pass==0)){discoverRail(rail.optString("title"),rail.optJSONArray("items"),ranked);if(rail.optString("id").equals("latest")&&doomsdaySlot==null)addDoomsday();}
         }
         if(doomsdaySlot==null)addDoomsday();
-        JSONArray genres=discoverFeed==null?null:discoverFeed.optJSONArray("genres");String origin=providerOrigin();
-        if(genres!=null&&!origin.isEmpty()){
-            body.addView(title("Esplora per genere",22));HorizontalScrollView scroll=tvShelf();scroll.setHorizontalScrollBarEnabled(false);LinearLayout row=new LinearLayout(this);row.setClipChildren(false);row.setClipToPadding(false);
-            for(int i=0;i<genres.length();i++){JSONObject genre=genres.optJSONObject(i);if(genre==null||genre.optInt("id")<=0)continue;try{JSONObject item=new JSONObject().put("url",origin+"/it/archive?genre%5B%5D="+genre.getInt("id")).put("scAction","collection").put("title",genre.getString("name"));TextView tab=button(genre.getString("name"),()->scCatalog(item));LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-2,-2);gp.setMargins(0,dp(8),dp(10),dp(16));row.addView(tab,gp);}catch(Exception ignored){}}
-            scroll.addView(row);body.addView(scroll);
-        }
+        addGenreShelf("");
         if(rails==null||rails.length()==0){body.addView(text(discoverError.isEmpty()?providerOrigin().isEmpty()?"Preparazione automatica dei suggerimenti…":"Caricamento dei titoli…":discoverError,14,MUTED));if(!discoverError.isEmpty())body.addView(button("Riprova",()->refreshSourceIndex(true,()->loadDiscover(true))));}
         else{LinearLayout footer=new LinearLayout(this);footer.addView(text("Scopri qualcosa di nuovo, oppure riparti da dove eri rimasto.",12,MUTED),new LinearLayout.LayoutParams(0,-2,1));footer.addView(button("Aggiorna",()->{refreshSourceIndex(true,()->loadDiscover(true));loadProgramHome(true);}));body.addView(footer);if(!discoverError.isEmpty())body.addView(text(discoverError,12,MUTED));}
         if(server().isEmpty()&&(rails==null||rails.length()==0))for(int i=0;i<items.length();i++){JSONObject item=items.optJSONObject(i);if(item!=null)body.addView(card(item));}
         space(body,20);
+    }
+    void addGenreShelf(String mediaTag){
+        JSONArray genres=discoverFeed==null?null:discoverFeed.optJSONArray("genres");
+        String origin=providerOrigin();
+        if(genres==null||origin.isEmpty())return;
+        HorizontalScrollView scroll=tvShelf();
+        scroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout row=new LinearLayout(this);
+        row.setClipChildren(false);row.setClipToPadding(false);
+        for(int i=0;i<genres.length();i++){
+            JSONObject genre=genres.optJSONObject(i);
+            if(genre==null||genre.optInt("id")<=0||genre.optString("name").isEmpty())continue;
+            String name=genre.optString("name");
+            try{
+                JSONObject item=StreamingCommunityCatalog.entry(name,
+                    origin+"/it/archive?genre%5B%5D="+genre.optInt("id"),"collection");
+                if(!mediaTag.isEmpty())item.put("collectionMediaTag",mediaTag).put("title",section+" · "+name);
+                LinearLayout.LayoutParams params=new LinearLayout.LayoutParams(-2,-2);
+                params.setMargins(0,dp(8),dp(10),dp(16));
+                row.addView(button(name,()->scCatalog(item)),params);
+            }catch(JSONException e){throw new IllegalStateException(e);}
+        }
+        if(row.getChildCount()==0)return;
+        body.addView(title("Esplora per genere",22));
+        scroll.addView(row);body.addView(scroll);
     }
     void addDoomsday(){doomsdaySlot=col();doomsdaySlot.setPadding(dp(16),dp(12),dp(16),dp(4));doomsdaySlot.setBackground(DoomTheme.panel(getResources().getDisplayMetrics().density));body.addView(doomsdaySlot);renderDoomsday();doomsday.load();}
     void showMarvelGuide(){rememberDiscover();screen="marvel";base();addNavigation("");root.addView(new MarvelGuide(this).view,new LinearLayout.LayoutParams(-1,0,1));}
@@ -404,7 +502,7 @@ public class MainActivity extends Activity {
         if(list==null||list.length()==0)return;LinearLayout heading=new LinearLayout(this);heading.setGravity(Gravity.CENTER_VERTICAL);if(label.equals(DoomsdayCollection.LABEL)){FrameLayout logoFrame=new FrameLayout(this);ImageView logo=new ImageView(this);logo.setImageResource(R.drawable.doomsday_logo);logo.setScaleType(ImageView.ScaleType.FIT_START);logo.setContentDescription("Avengers Doomsday");logoFrame.addView(logo,new FrameLayout.LayoutParams(dp(235),dp(90),Gravity.LEFT|Gravity.CENTER_VERTICAL));heading.addView(logoFrame,new LinearLayout.LayoutParams(0,dp(94),1));}else heading.addView(title(label,22),new LinearLayout.LayoutParams(0,-2,1));heading.addView(button("Vedi tutti",()->{if(label.equals(DoomsdayCollection.LABEL)){showMarvelGuide();return;}pushHistory();items=list;catalogTitle=label;section="Catalogo";focusItem="";home();}));if(label.equals(DoomsdayCollection.LABEL))heading.getChildAt(1).setBackground(DoomTheme.focus(getResources().getDisplayMetrics().density));body.addView(heading);space(body,8);
         HorizontalScrollView scroll=tvShelf();scroll.setClipToPadding(false);scroll.setPadding(dp(10),dp(12),dp(10),dp(12));scroll.setHorizontalScrollBarEnabled(false);LinearLayout row=new LinearLayout(this);row.setClipChildren(false);row.setClipToPadding(false);
         for(int n=0;n<Math.min(12,list.length());n++){JSONObject item=list.optJSONObject(n);if(item==null)continue;View tile=ranked?rankedCard(item,n+1):card(item);if(label.equals(DoomsdayCollection.LABEL))tile.setBackground(DoomTheme.focus(getResources().getDisplayMetrics().density));row.addView(tile);}
-        scroll.addView(row);tvFocus.shelf(scroll,heading.getChildAt(1));scroll.setOnScrollChangeListener((View.OnScrollChangeListener)(v,x,y,oldX,oldY)->discoverRowOffsets.put(label,x));scroll.post(()->scroll.scrollTo(discoverRowOffsets.getOrDefault(label,0),0));body.addView(scroll);space(body,20);
+        scroll.addView(row);tvFocus.shelf(scroll,heading.getChildAt(1));if(!mediaSection()){scroll.setOnScrollChangeListener((View.OnScrollChangeListener)(v,x,y,oldX,oldY)->discoverRowOffsets.put(label,x));scroll.post(()->scroll.scrollTo(discoverRowOffsets.getOrDefault(label,0),0));}body.addView(scroll);space(body,20);
     }
     View rankedCard(JSONObject item,int rank){
         // Match iPad: an outlined number behind a 2:3 poster, with wider space for 10.
@@ -656,7 +754,11 @@ public class MainActivity extends Activity {
                 }
                 JSONArray list;JSONObject readyProps=props;String readyOrigin=origin;JSONArray availableSeasons=null;
                 if(isScSearch(item))list=StreamingCommunityCatalog.search(props,origin,uri.getQueryParameter("q")==null?"":uri.getQueryParameter("q"));
-                else if(action.equals("collection"))list=StreamingCommunityCatalog.titles(props,origin);
+                else if(action.equals("collection")){
+                    list=StreamingCommunityCatalog.titles(props,origin);
+                    String mediaTag=item.optString("collectionMediaTag");
+                    if(!mediaTag.isEmpty())list=StreamingCommunityCatalog.filterByTag(list,mediaTag);
+                }
                 else if(action.equals("season")){
                     SeriesNavigation.verifySeason(props,item.optLong("scTitleId"),item.optInt("seasonNumber"));list=StreamingCommunityCatalog.episodes(props,origin);availableSeasons=StreamingCommunityCatalog.seasons(props,origin);
                 }else if(props.getJSONObject("title").optString("type").equals("movie")){
