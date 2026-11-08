@@ -12,6 +12,10 @@ import android.widget.*;
 import android.webkit.*;
 import androidx.media3.common.*;
 import androidx.media3.exoplayer.ExoPlayer;
+import androidx.media3.exoplayer.DefaultLoadControl;
+import androidx.media3.exoplayer.analytics.AnalyticsListener;
+import androidx.media3.exoplayer.source.LoadEventInfo;
+import androidx.media3.exoplayer.source.MediaLoadData;
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory;
 import androidx.media3.datasource.DefaultDataSource;
 import org.json.*;
@@ -1099,6 +1103,10 @@ public class MainActivity extends Activity {
         frame.addView(transport,new FrameLayout.LayoutParams(-1,-2,Gravity.BOTTOM));
         seek.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onStartTrackingTouch(SeekBar s){seeking=true;}public void onStopTrackingTouch(SeekBar s){if(player!=null&&player.getDuration()>0)player.seekTo(player.getDuration()*s.getProgress()/1000);seeking=false;showControls();}public void onProgressChanged(SeekBar s,int p,boolean user){}});
         ExoPlayer.Builder builder=new ExoPlayer.Builder(this);
+        if(live!=null)builder.setLoadControl(new DefaultLoadControl.Builder()
+            .setBufferDurationsMs(DefaultLoadControl.DEFAULT_MIN_BUFFER_MS,DefaultLoadControl.DEFAULT_MAX_BUFFER_MS,
+                DefaultLoadControl.DEFAULT_BUFFER_FOR_PLAYBACK_MS,3500)
+            .build());
         if(item.optString("url").startsWith("/v1/media/")&&!prefs.getString("serverKey","").isEmpty()){
             final String endpoint=server(),key=prefs.getString("serverKey","");
             builder.setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(this,()->new BrowserSessionDataSource(endpoint,key))));
@@ -1110,6 +1118,12 @@ public class MainActivity extends Activity {
             builder.setMediaSourceFactory(new DefaultMediaSourceFactory(new DefaultDataSource.Factory(this,()->new BrowserSessionDataSource(browserUa,captured,mediaHost))));
         }
         player=builder.build();final ExoPlayer current=player;player.setVideoSurfaceView(surface);
+        if(live!=null)current.addAnalyticsListener(new AnalyticsListener(){
+            @Override public void onLoadCompleted(EventTime time,LoadEventInfo info,MediaLoadData data){
+                if(player==current&&data.dataType==C.DATA_TYPE_MEDIA&&info.bytesLoaded>0)
+                    live.recordJumpMedia(info.elapsedRealtimeMs);
+            }
+        });
         player.addListener(new Player.Listener(){
             @Override public void onRenderedFirstFrame(){if(player!=current)return;if(!playingStarted)logProgramLive(live,"first_frame","");playingStarted=true;savePlayback(false);loading.setVisibility(View.GONE);android.util.Log.i("NicoStreamPlayback","FIRST_FRAME");}
             @Override public void onVideoSizeChanged(VideoSize size){frame.post(()->{if(player!=current||size.height==0)return;float aspect=(float)size.width*size.pixelWidthHeightRatio/size.height;int w=frame.getWidth(),h=frame.getHeight();if(w==0||h==0)return;int vw=Math.min(w,(int)(h*aspect)),vh=(int)(vw/aspect);surface.setLayoutParams(new FrameLayout.LayoutParams(vw,vh,Gravity.CENTER));});}

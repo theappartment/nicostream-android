@@ -27,6 +27,17 @@ public class ProgramLiveRecoveryTest {
         assertTrue(recovery.beginLiveJump(13000));
     }
 
+    @Test public void liveJumpExtendsOnlyWhileMediaIsRecentAndStopsAtFifteenSeconds() {
+        ProgramLiveRecovery recovery = new ProgramLiveRecovery(new JSONObject(), "");
+        assertTrue(recovery.beginLiveJump(1000));
+        recovery.recordJumpMedia(9000);
+        assertFalse(recovery.liveJumpTimedOut(11000));
+        assertTrue(recovery.liveJumpTimedOut(13001));
+        recovery.recordJumpMedia(14000);
+        assertFalse(recovery.liveJumpTimedOut(15999));
+        assertTrue(recovery.liveJumpTimedOut(16000));
+    }
+
     @Test public void retriesIoButNotDecoderErrors() {
         assertTrue(ProgramLiveRecovery.retryable(PlaybackException.ERROR_CODE_IO_UNSPECIFIED));
         assertFalse(ProgramLiveRecovery.retryable(PlaybackException.ERROR_CODE_DECODING_FAILED));

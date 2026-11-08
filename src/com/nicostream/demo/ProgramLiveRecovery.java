@@ -6,6 +6,7 @@ import org.json.JSONObject;
 final class ProgramLiveRecovery {
     private static final int[] DELAYS_MS = {2000, 5000, 10000};
     private static final long STALL_MS = 35000, STABLE_MS = 30000, JUMP_TIMEOUT_MS = 10000;
+    private static final long JUMP_MAX_MS = 15000, RECENT_MEDIA_MS = 4000;
 
     final JSONObject source;
     final String diagnosticSession = java.util.UUID.randomUUID().toString();
@@ -15,7 +16,7 @@ final class ProgramLiveRecovery {
     int attempts;
     boolean pending;
     private boolean jumped;
-    private long jumpStarted = -1;
+    private long jumpStarted = -1, lastJumpMedia = -1;
     private long playingSince = -1, bufferingSince = -1;
 
     ProgramLiveRecovery(JSONObject source, String resolvedTitle) {
@@ -48,6 +49,7 @@ final class ProgramLiveRecovery {
         if (jumped) return false;
         jumped = true;
         jumpStarted = now;
+        lastJumpMedia = -1;
         playingSince = bufferingSince = -1;
         return true;
     }
@@ -58,8 +60,14 @@ final class ProgramLiveRecovery {
         return true;
     }
 
+    void recordJumpMedia(long now) {
+        if (jumpStarted >= 0) lastJumpMedia = now;
+    }
+
     boolean liveJumpTimedOut(long now) {
-        return jumpStarted >= 0 && now - jumpStarted >= JUMP_TIMEOUT_MS;
+        if (jumpStarted < 0 || now - jumpStarted < JUMP_TIMEOUT_MS) return false;
+        return now - jumpStarted >= JUMP_MAX_MS || lastJumpMedia < jumpStarted
+            || now - lastJumpMedia > RECENT_MEDIA_MS;
     }
 
     int nextDelay() {

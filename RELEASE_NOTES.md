@@ -1,5 +1,4 @@
-NicoFlix 0.11.4
+NicoFlix 0.11.5
 
-- Program Feed torna automaticamente al punto live quando scade la finestra della diretta.
-- Il player prova prima con lo stesso URL e chiede una nuova sorgente se il salto fallisce.
-- La diagnostica facoltativa distingue il salto al punto live dalla ripresa effettiva della riproduzione.
+- Program Feed estende il salto al punto live da 10 a un massimo di 15 secondi quando continuano ad arrivare segmenti audio o video.
+- Il buffer richiesto per ripartire dopo un blocco passa da 2 a 3,5 secondi sulle dirette Android.
