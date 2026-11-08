@@ -1114,10 +1114,23 @@ public class MainActivity extends Activity {
             @Override public void onRenderedFirstFrame(){if(player!=current)return;if(!playingStarted)logProgramLive(live,"first_frame","");playingStarted=true;savePlayback(false);loading.setVisibility(View.GONE);android.util.Log.i("NicoStreamPlayback","FIRST_FRAME");}
             @Override public void onVideoSizeChanged(VideoSize size){frame.post(()->{if(player!=current||size.height==0)return;float aspect=(float)size.width*size.pixelWidthHeightRatio/size.height;int w=frame.getWidth(),h=frame.getHeight();if(w==0||h==0)return;int vw=Math.min(w,(int)(h*aspect)),vh=(int)(vw/aspect);surface.setLayoutParams(new FrameLayout.LayoutParams(vw,vh,Gravity.CENTER));});}
             @Override public void onPositionDiscontinuity(Player.PositionInfo oldPosition,Player.PositionInfo newPosition,int reason){if(player==current&&playingStarted)savePlayback(false);}
-            @Override public void onIsPlayingChanged(boolean isPlaying){if(player==current&&!isPlaying)savePlayback(false);}
+            @Override public void onIsPlayingChanged(boolean isPlaying){if(player!=current)return;
+                if(!isPlaying)savePlayback(false);
+                else if(live!=null&&live.completeLiveJump()){
+                    android.util.Log.i("NicoStreamPlayback","PROGRAM_LIVE_JUMP_RESUMED");
+                    logProgramLive(live,"live_resumed","");
+                }}
             @Override public void onPlaybackStateChanged(int state){if(player!=current)return;if(state==Player.STATE_ENDED){if(live!=null){retryProgramLive(live,"STREAM_ENDED");return;}savePlayback(true);JSONObject next=item.optJSONObject("nextEpisode");if(next!=null)startNext(next);else home();}else if(state==Player.STATE_BUFFERING)loading.setVisibility(View.VISIBLE);else if(state==Player.STATE_READY&&current.getCurrentPosition()>0)loading.setVisibility(View.GONE);}
             @Override public void onPlayerError(PlaybackException e){
                 if(player!=current)return;
+                if(live!=null&&e.errorCode==PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW
+                        &&current.getPlayWhenReady()&&live.beginLiveJump(android.os.SystemClock.elapsedRealtime())){
+                    android.util.Log.i("NicoStreamPlayback","PROGRAM_LIVE_JUMP");
+                    logProgramLive(live,"live_jump",e.getErrorCodeName());
+                    current.seekToDefaultPosition();
+                    current.prepare();
+                    return;
+                }
                 if(live!=null&&ProgramLiveRecovery.retryable(e.errorCode)){
                     retryProgramLive(live,e.getErrorCodeName());return;
                 }
@@ -1142,7 +1155,7 @@ public class MainActivity extends Activity {
         JSONArray subs=item.optJSONArray("subtitles");if(subs!=null){ArrayList<MediaItem.SubtitleConfiguration> configs=new ArrayList<>();for(int i=0;i<subs.length();i++){String sub=subs.optString(i);if(sub.startsWith("/v1/media/"))sub=server()+sub;if(sub.startsWith("https://")||sub.startsWith("http://127.0.0.1:"))configs.add(new MediaItem.SubtitleConfiguration.Builder(Uri.parse(sub)).setMimeType(sub.contains(".vtt")?MimeTypes.TEXT_VTT:MimeTypes.APPLICATION_SUBRIP).setLabel("Sottotitoli "+(i+1)).build());}media.setSubtitleConfigurations(configs);}
         long resume=item.optBoolean("isLive")?0:item.optLong("resumeAt",resumePosition(playingSource));if(item.optBoolean("isLive"))player.setMediaItem(media.build());else player.setMediaItem(media.build(),Math.max(0,resume));if(resume>0)android.util.Log.i("NicoStreamPlayback","RESUME_REQUEST_MS="+resume);player.prepare();player.play();showControls();pauseButton.requestFocus();
         final boolean[] playbackVerified={false};
-        Runnable tick=new Runnable(){public void run(){if(!alive||player!=current)return;long duration=current.getDuration(),pos=current.getCurrentPosition();if(live!=null&&live.update(android.os.SystemClock.elapsedRealtime(),current.isPlaying(),current.getPlayWhenReady()&&current.getPlaybackState()==Player.STATE_BUFFERING)){retryProgramLive(live,"BUFFER_TIMEOUT");return;}if(playingStarted&&System.currentTimeMillis()-lastProgressSave>=5000)savePlayback(false);if(playingStarted&&current.getVideoFormat()!=null&&pos>=5000&&!playbackVerified[0]){playbackVerified[0]=true;android.util.Log.i("NicoStreamPlayback","PROGRESS_MS="+pos+" VIDEO="+(current.getVideoFormat()!=null)+" AUDIO="+(current.getAudioFormat()!=null));}clock.setText(time(pos)+(duration>0?" / "+time(duration):" · DIRETTA"));if(duration>0&&!seeking)seek.setProgress((int)(pos*1000/duration));pauseButton.setText(current.isPlaying()?"Ⅱ Pausa":"▶ Riprendi");if(System.currentTimeMillis()>controlUntil&&current.isPlaying()&&!seeking&&!seek.hasFocus())transport.setVisibility(View.GONE);main.postDelayed(this,500);}};main.post(tick);
+        Runnable tick=new Runnable(){public void run(){if(!alive||player!=current)return;long duration=current.getDuration(),pos=current.getCurrentPosition();long now=android.os.SystemClock.elapsedRealtime();if(live!=null&&current.getPlayWhenReady()&&live.liveJumpTimedOut(now)){retryProgramLive(live,"LIVE_JUMP_TIMEOUT");return;}if(live!=null&&live.update(now,current.isPlaying(),current.getPlayWhenReady()&&current.getPlaybackState()==Player.STATE_BUFFERING)){retryProgramLive(live,"BUFFER_TIMEOUT");return;}if(playingStarted&&System.currentTimeMillis()-lastProgressSave>=5000)savePlayback(false);if(playingStarted&&current.getVideoFormat()!=null&&pos>=5000&&!playbackVerified[0]){playbackVerified[0]=true;android.util.Log.i("NicoStreamPlayback","PROGRESS_MS="+pos+" VIDEO="+(current.getVideoFormat()!=null)+" AUDIO="+(current.getAudioFormat()!=null));}clock.setText(time(pos)+(duration>0?" / "+time(duration):" · DIRETTA"));if(duration>0&&!seeking)seek.setProgress((int)(pos*1000/duration));pauseButton.setText(current.isPlaying()?"Ⅱ Pausa":"▶ Riprendi");if(System.currentTimeMillis()>controlUntil&&current.isPlaying()&&!seeking&&!seek.hasFocus())transport.setVisibility(View.GONE);main.postDelayed(this,500);}};main.post(tick);
         main.postDelayed(()->{if(live==null&&alive&&player==current&&current.getPlaybackState()==Player.STATE_BUFFERING&&current.getCurrentPosition()==0){details(item);showError("La sorgente non risponde. Prova un’altra sorgente dal catalogo.");}},45000);
     }
     String time(long ms){long s=Math.max(0,ms/1000);return s>=3600?String.format(Locale.ROOT,"%d:%02d:%02d",s/3600,s/60%60,s%60):String.format(Locale.ROOT,"%d:%02d",s/60,s%60);}

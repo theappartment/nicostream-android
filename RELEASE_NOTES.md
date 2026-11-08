@@ -1,5 +1,5 @@
-NicoFlix 0.11.3
+NicoFlix 0.11.4
 
-- Program Feed ritenta automaticamente l’apertura e la riconnessione delle dirette quando la sorgente non risponde.
-- Dopo tre tentativi, il comando Riprova riapre lo stesso evento.
-- Diagnostica facoltativa delle dirette in Impostazioni → Connessione, disattivata di default.
+- Program Feed torna automaticamente al punto live quando scade la finestra della diretta.
+- Il player prova prima con lo stesso URL e chiede una nuova sorgente se il salto fallisce.
+- La diagnostica facoltativa distingue il salto al punto live dalla ripresa effettiva della riproduzione.

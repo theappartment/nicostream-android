@@ -13,6 +13,20 @@ public class ProgramLiveRecoveryTest {
         assertFalse(ProgramLiveRecovery.supports(route.put("isLive", false)));
     }
 
+    @Test public void liveJumpIsBoundedAndDoesNotSpendAnUrlRetry() {
+        ProgramLiveRecovery recovery = new ProgramLiveRecovery(new JSONObject(), "");
+        assertTrue(recovery.beginLiveJump(1000));
+        assertEquals(0, recovery.attempts);
+        assertFalse(recovery.beginLiveJump(1001));
+        assertFalse(recovery.liveJumpTimedOut(10999));
+        assertTrue(recovery.liveJumpTimedOut(11000));
+        assertTrue(recovery.completeLiveJump());
+        assertFalse(recovery.liveJumpTimedOut(12000));
+        assertFalse(recovery.beginLiveJump(12000));
+        assertEquals(2000, recovery.nextDelay());
+        assertTrue(recovery.beginLiveJump(13000));
+    }
+
     @Test public void retriesIoButNotDecoderErrors() {
         assertTrue(ProgramLiveRecovery.retryable(PlaybackException.ERROR_CODE_IO_UNSPECIFIED));
         assertFalse(ProgramLiveRecovery.retryable(PlaybackException.ERROR_CODE_DECODING_FAILED));
