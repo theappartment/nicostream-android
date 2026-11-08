@@ -128,9 +128,10 @@ public class MainActivity extends Activity {
             return out.toString("UTF-8");
         }
     }
-    JSONObject api(String path,JSONObject post)throws Exception{
+    JSONObject api(String path,JSONObject post)throws Exception{return api(path,post,65000);}
+    JSONObject api(String path,JSONObject post,int readTimeout)throws Exception{
         HttpURLConnection c=(HttpURLConnection)new URL(server()+path).openConnection();
-        c.setConnectTimeout(10000);c.setReadTimeout(65000);c.setInstanceFollowRedirects(false);
+        c.setConnectTimeout(Math.min(10000,readTimeout));c.setReadTimeout(readTimeout);c.setInstanceFollowRedirects(false);
         String authorization=EngineAccess.authorization(server(),server()+path,prefs.getString("serverKey",""));if(!authorization.isEmpty())c.setRequestProperty("Authorization",authorization);
         try{
             if(post!=null){c.setRequestMethod("POST");c.setDoOutput(true);c.setRequestProperty("Content-Type","application/json");try(OutputStream out=c.getOutputStream()){out.write(post.toString().getBytes("UTF-8"));}}
@@ -150,6 +151,7 @@ public class MainActivity extends Activity {
     void space(LinearLayout l,int h){l.addView(new View(this),new LinearLayout.LayoutParams(1,dp(h)));}
     TextView button(String label,Runnable action){TextView b=text(label,16,WHITE);b.setGravity(Gravity.CENTER);b.setPadding(dp(20),dp(13),dp(20),dp(13));b.setMinHeight(dp(46));b.setBackground(focus());b.setFocusable(true);b.setClickable(true);b.setOnClickListener(v->action.run());return b;}
     void base(){
+        liveRecovery=null;
         if(seriesScreen!=null){seriesScreen.close();seriesScreen=null;}
         if(searchScreen!=null){searchScreen.close();searchScreen=null;if(unifiedSearchBusy){unifiedSearchBusy=false;cancelJob();}}
         revealKey=KeyEvent.KEYCODE_UNKNOWN;
@@ -867,30 +869,48 @@ public class MainActivity extends Activity {
     }
     void action(JSONObject item){action(item,false);}
     void action(JSONObject item,boolean isRoot){
+        ProgramLiveRecovery recovery=ProgramLiveRecovery.supports(item)?new ProgramLiveRecovery(item,""):null;
+        if(recovery!=null){
+            recovery.diagnosticStart=android.os.SystemClock.elapsedRealtime();
+            logProgramLive(recovery,"opening","");
+        }
+        action(item,isRoot,recovery);
+    }
+    void action(JSONObject item,boolean isRoot,ProgramLiveRecovery recovery){
         if(!currentJob.isEmpty())return;
         final long request=++generation;
-        screen="loading";base();LinearLayout loading=col();loading.setGravity(Gravity.CENTER);root.addView(loading,new LinearLayout.LayoutParams(-1,0,1));
+        screen="loading";base();liveRecovery=recovery;LinearLayout loading=col();loading.setGravity(Gravity.CENTER);root.addView(loading,new LinearLayout.LayoutParams(-1,0,1));
         loading.addView(text("NICOSTREAM",12,MINT));space(loading,16);loading.addView(title(item.optString("title","Preparazione del catalogo"),28));space(loading,20);
-        ProgressBar spinner=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);spinner.setIndeterminate(true);spinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(MINT));loading.addView(spinner,new LinearLayout.LayoutParams(dp(220),dp(3)));space(loading,14);loading.addView(text("Un momento, stiamo preparando i contenuti",14,MUTED));space(loading,24);loading.addView(button("Annulla",()->{cancelJob();home();}),new LinearLayout.LayoutParams(-2,-2));
+        ProgressBar spinner=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);spinner.setIndeterminate(true);spinner.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(MINT));loading.addView(spinner,new LinearLayout.LayoutParams(dp(220),dp(3)));space(loading,14);loading.addView(text(recovery==null||recovery.attempts==0?"Un momento, stiamo preparando i contenuti":"Riconnessione alla diretta…",14,MUTED));space(loading,24);loading.addView(button("Annulla",()->{cancelJob();home();}),new LinearLayout.LayoutParams(-2,-2));
         worker.execute(()->{
             String job="";String lastDialog="";
             try{
                 job=api("/v1/actions",new JSONObject().put("url",item.optString("url"))).getString("job");
                 if(!alive||generation!=request){cancelRemote(job);return;}
                 currentJob=job;
-                long deadline=System.currentTimeMillis()+300000;
+                long deadline=System.currentTimeMillis()+(recovery==null?300000:25000);
                 while(alive&&generation==request&&System.currentTimeMillis()<deadline){
                     JSONObject state=api("/v1/jobs/"+job,null);String phase=state.optString("status");
                     if(phase.equals("dialog")){
                         JSONObject dialog=state.getJSONObject("dialog");String id=dialog.getString("id");
-                        if(!id.equals(lastDialog)){lastDialog=id;final String active=job;runOnUiThread(()->{if(alive&&generation==request)showRemoteDialog(active,dialog,request);});}
+                        if(!id.equals(lastDialog)){lastDialog=id;final String active=job;runOnUiThread(()->{if(alive&&generation==request){if(recovery==null)showRemoteDialog(active,dialog,request);else{cancelJob();retryProgramLive(recovery,"ADDON_DIALOG");}}});}
                     }else if(phase.equals("complete")){
                         JSONObject result=state.getJSONObject("result");
+                        String jobId=job;
                         runOnUiThread(()->{
                             if(!alive||generation!=request)return;currentJob="";dismissDialog();if(item.optString("url").contains("android_settings=1")){programHomeUpdated=0;programHomeFeed=null;programHomeRevision++;}
                             if(result.optString("kind").equals("playback")){
-                                try{JSONObject media=new JSONObject(item.toString());media.put("url",result.getString("url"));media.put("mime",result.optString("mime"));media.put("headers",result.optJSONObject("headers"));media.put("subtitles",result.optJSONArray("subtitles"));media.put("drm",result.optJSONObject("drm"));media.put("isPlugin",false);media.put("resumeSource",PlaybackHistory.source(item));if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")){JSONObject next=PlaybackHistory.next(item,items);if(next!=null)media.put("nextEpisode",next);}if(item.has("resumeAt"))media.put("resumeAt",item.getLong("resumeAt"));play(media);}catch(Exception e){showError(e.getMessage());home();}
+                                if(recovery!=null){
+                                    recovery.diagnosticJob=jobId;
+                                    logProgramLive(recovery,"resolved","");
+                                }
+                                String resolvedTitle=result.optString("title");
+                                if(recovery!=null&&!recovery.acceptTitle(resolvedTitle)){
+                                    retryProgramLive(recovery,"EVENT_CHANGED");return;
+                                }
+                                try{JSONObject media=new JSONObject(item.toString());media.put("url",result.getString("url"));media.put("mime",result.optString("mime"));if(item.optBoolean("isLive"))media.put("resolvedLiveTitle",resolvedTitle);media.put("headers",result.optJSONObject("headers"));media.put("subtitles",result.optJSONArray("subtitles"));media.put("drm",result.optJSONObject("drm"));media.put("isPlugin",false);media.put("resumeSource",PlaybackHistory.source(item));if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")){JSONObject next=PlaybackHistory.next(item,items);if(next!=null)media.put("nextEpisode",next);}if(item.has("resumeAt"))media.put("resumeAt",item.getLong("resumeAt"));play(media,recovery);}catch(Exception e){if(recovery!=null)retryProgramLive(recovery,"INVALID_PLAYBACK");else{showError(e.getMessage());home();}}
                             }else{
+                                if(recovery!=null){retryProgramLive(recovery,"NO_PLAYBACK");return;}
                                 if(isRoot){history.clear();titles.clear();historySections.clear();}else{pushHistory();}
                                 items=result.optJSONArray("items");if(items==null)items=new JSONArray();
                                 if(item.optString("addonId").contains("toonitalia")&&item.optString("action").equals("title")){
@@ -903,13 +923,15 @@ public class MainActivity extends Activity {
                             }
                         });return;
                     }else if(phase.equals("error"))throw new IOException(state.optString("error","Errore addon"));
-                    else if(phase.equals("cancelled")){runOnUiThread(()->{if(generation==request){currentJob="";dismissDialog();home();}});return;}
+                    else if(phase.equals("cancelled")){runOnUiThread(()->{if(generation==request){currentJob="";dismissDialog();if(recovery!=null)retryProgramLive(recovery,"ADDON_CANCELLED");else home();}});return;}
                     Thread.sleep(600);
                 }
-                cancelRemote(job);
+                if(recovery==null)cancelRemote(job);
                 if(alive&&generation==request)throw new IOException("L’addon ha impiegato troppo tempo. Riprova o scegli un’altra sorgente.");
             }catch(Exception e){
-                final String message=e.getMessage();runOnUiThread(()->{if(alive&&generation==request){currentJob="";dismissDialog();home();if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")&&item.optBoolean("isPlayable"))toonFailure(item,message);else showError(message);}});
+                if(recovery!=null)cancelRemote(job);
+                String failedJob=job;
+                final String message=e.getMessage();runOnUiThread(()->{if(alive&&generation==request){currentJob="";dismissDialog();if(recovery!=null){recovery.diagnosticJob=failedJob;retryProgramLive(recovery,resolutionReason(e));return;}home();if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")&&item.optBoolean("isPlayable"))toonFailure(item,message);else showError(message);}});
             }
         });
     }
@@ -994,10 +1016,67 @@ public class MainActivity extends Activity {
             LinearLayout.LayoutParams cp=new LinearLayout.LayoutParams(dp(260),dp(248));cp.setMargins(0,0,dp(14),0);shelf.addView(card,cp);
         }scroll.addView(shelf);block.addView(scroll);space(block,20);
     }
-    void play(JSONObject item){
-        screen="player";base();selected=item;playingSource=item.optJSONObject("resumeSource");if(playingSource==null&&!item.optBoolean("localBrowserSession"))try{playingSource=PlaybackHistory.source(item);}catch(Exception ignored){}lastProgressSave=0;root.setPadding(0,0,0,0);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+    final java.util.concurrent.ExecutorService diagnosticsWorker=new java.util.concurrent.ThreadPoolExecutor(
+        1,1,0,java.util.concurrent.TimeUnit.SECONDS,new java.util.concurrent.ArrayBlockingQueue<>(32),
+        new java.util.concurrent.ThreadPoolExecutor.DiscardOldestPolicy());
+    String resolutionReason(Exception error){
+        String message=error.getMessage();
+        return error instanceof java.net.SocketTimeoutException
+            || message!=null&&message.toLowerCase(Locale.ROOT).contains("timed out")?"RESOLVE_TIMEOUT":"RESOLVE_FAILED";
+    }
+    void logProgramLive(ProgramLiveRecovery recovery,String event,String reason){
+        if(recovery==null||!prefs.getBoolean("sharePlaybackDiagnostics",false))return;
+        try{
+            long elapsed=Math.max(0,android.os.SystemClock.elapsedRealtime()-recovery.diagnosticStart);
+            JSONObject payload=new JSONObject().put("session",recovery.diagnosticSession).put("event",event)
+                .put("reason",reason).put("attempt",recovery.attempts).put("elapsedMs",Math.min(elapsed,86400000))
+                .put("version",BuildConfig.VERSION_NAME).put("sdk",Build.VERSION.SDK_INT).put("job",recovery.diagnosticJob);
+            diagnosticsWorker.execute(()->{
+                if(!prefs.getBoolean("sharePlaybackDiagnostics",false))return;
+                try{api("/v1/diagnostics/playback",payload,4000);}catch(Exception ignored){}
+            });
+        }catch(JSONException ignored){}
+    }
+    ProgramLiveRecovery liveRecovery;
+    void retryProgramLive(ProgramLiveRecovery recovery,String reason){
+        if(liveRecovery!=recovery||recovery.pending)return;
+        int delay=recovery.nextDelay();
+        android.util.Log.i("NicoStreamPlayback","PROGRAM_LIVE "+reason+" attempt="+recovery.attempts);
+        logProgramLive(recovery,delay<0?"failed":"retry",reason);
+        if(delay<0){
+            home();
+            new AlertDialog.Builder(this).setTitle("Diretta interrotta")
+                .setMessage("Non sono riuscito a riconnettermi alla stessa diretta.")
+                .setPositiveButton("Riprova",(d,w)->action(recovery.source))
+                .setNegativeButton("Catalogo",null).show();
+            return;
+        }
+        if(player!=null){ExoPlayer interrupted=player;player=null;interrupted.release();}
+        screen="loading";
+        TextView status=text("Riconnessione alla diretta · "+recovery.attempts+"/3",18,WHITE);
+        status.setGravity(Gravity.CENTER);
+        root.removeAllViews();
+        root.addView(status,new LinearLayout.LayoutParams(-1,0,1));
+        View exit=button("‹ Catalogo",this::home);
+        root.addView(exit);exit.requestFocus();
+        recovery.pending=true;
+        main.postDelayed(()->{
+            if(!alive||liveRecovery!=recovery)return;
+            recovery.pending=false;
+            action(recovery.source,false,recovery);
+        },delay);
+    }
+    void play(JSONObject item){play(item,null);}
+    void play(JSONObject item,ProgramLiveRecovery recovery){
+        screen="player";base();selected=item;
+        JSONObject route=item.optJSONObject("resumeSource");
+        if(recovery==null&&ProgramLiveRecovery.supports(route)){
+            recovery=new ProgramLiveRecovery(route,item.optString("resolvedLiveTitle"));
+        }
+        final ProgramLiveRecovery live=recovery;
+        liveRecovery=live;playingSource=item.optJSONObject("resumeSource");if(playingSource==null&&!item.optBoolean("localBrowserSession"))try{playingSource=PlaybackHistory.source(item);}catch(Exception ignored){}lastProgressSave=0;root.setPadding(0,0,0,0);getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         String url=item.optString("url");if(url.startsWith("/v1/media/"))url=server()+url;
-        if(!(url.startsWith("https://")||url.startsWith("http://127.0.0.1:"))){home();showError("Protocollo video non supportato");return;}
+        if(!(url.startsWith("https://")||url.startsWith("http://127.0.0.1:"))){if(live!=null){retryProgramLive(live,"INVALID_URL");return;}home();showError("Protocollo video non supportato");return;}
         FrameLayout frame=new FrameLayout(this);root.addView(frame,new LinearLayout.LayoutParams(-1,-1));
         SurfaceView surface=new SurfaceView(this);frame.addView(surface,new FrameLayout.LayoutParams(-1,-1,Gravity.CENTER));
         TextView loading=text("Caricamento di "+item.optString("title")+"…",18,WHITE);loading.setGravity(Gravity.CENTER);frame.addView(loading,new FrameLayout.LayoutParams(-1,-1));
@@ -1032,13 +1111,18 @@ public class MainActivity extends Activity {
         }
         player=builder.build();final ExoPlayer current=player;player.setVideoSurfaceView(surface);
         player.addListener(new Player.Listener(){
-            @Override public void onRenderedFirstFrame(){if(player!=current)return;playingStarted=true;savePlayback(false);loading.setVisibility(View.GONE);android.util.Log.i("NicoStreamPlayback","FIRST_FRAME");}
+            @Override public void onRenderedFirstFrame(){if(player!=current)return;if(!playingStarted)logProgramLive(live,"first_frame","");playingStarted=true;savePlayback(false);loading.setVisibility(View.GONE);android.util.Log.i("NicoStreamPlayback","FIRST_FRAME");}
             @Override public void onVideoSizeChanged(VideoSize size){frame.post(()->{if(player!=current||size.height==0)return;float aspect=(float)size.width*size.pixelWidthHeightRatio/size.height;int w=frame.getWidth(),h=frame.getHeight();if(w==0||h==0)return;int vw=Math.min(w,(int)(h*aspect)),vh=(int)(vw/aspect);surface.setLayoutParams(new FrameLayout.LayoutParams(vw,vh,Gravity.CENTER));});}
             @Override public void onPositionDiscontinuity(Player.PositionInfo oldPosition,Player.PositionInfo newPosition,int reason){if(player==current&&playingStarted)savePlayback(false);}
             @Override public void onIsPlayingChanged(boolean isPlaying){if(player==current&&!isPlaying)savePlayback(false);}
-            @Override public void onPlaybackStateChanged(int state){if(player!=current)return;if(state==Player.STATE_ENDED){savePlayback(true);JSONObject next=item.optJSONObject("nextEpisode");if(next!=null)startNext(next);else home();}else if(state==Player.STATE_BUFFERING)loading.setVisibility(View.VISIBLE);else if(state==Player.STATE_READY&&current.getCurrentPosition()>0)loading.setVisibility(View.GONE);}
+            @Override public void onPlaybackStateChanged(int state){if(player!=current)return;if(state==Player.STATE_ENDED){if(live!=null){retryProgramLive(live,"STREAM_ENDED");return;}savePlayback(true);JSONObject next=item.optJSONObject("nextEpisode");if(next!=null)startNext(next);else home();}else if(state==Player.STATE_BUFFERING)loading.setVisibility(View.VISIBLE);else if(state==Player.STATE_READY&&current.getCurrentPosition()>0)loading.setVisibility(View.GONE);}
             @Override public void onPlayerError(PlaybackException e){
-                if(player!=current)return;android.util.Log.e("NicoStreamPlayback",e.getErrorCodeName(),e);
+                if(player!=current)return;
+                if(live!=null&&ProgramLiveRecovery.retryable(e.errorCode)){
+                    retryProgramLive(live,e.getErrorCodeName());return;
+                }
+                logProgramLive(live,"failed",e.getErrorCodeName());
+                android.util.Log.e("NicoStreamPlayback",e.getErrorCodeName(),e);
                 if(item.optString("addonId").equals("plugin.video.nikod.toonitalia")){
                     JSONObject source=item.optJSONObject("resumeSource");home();toonFailure(source==null?item:source,"La sorgente non ha accettato la riproduzione. Puoi provare un altro server dell’episodio.");
                 }else if(item.optBoolean("localBrowserSession")){
@@ -1058,8 +1142,8 @@ public class MainActivity extends Activity {
         JSONArray subs=item.optJSONArray("subtitles");if(subs!=null){ArrayList<MediaItem.SubtitleConfiguration> configs=new ArrayList<>();for(int i=0;i<subs.length();i++){String sub=subs.optString(i);if(sub.startsWith("/v1/media/"))sub=server()+sub;if(sub.startsWith("https://")||sub.startsWith("http://127.0.0.1:"))configs.add(new MediaItem.SubtitleConfiguration.Builder(Uri.parse(sub)).setMimeType(sub.contains(".vtt")?MimeTypes.TEXT_VTT:MimeTypes.APPLICATION_SUBRIP).setLabel("Sottotitoli "+(i+1)).build());}media.setSubtitleConfigurations(configs);}
         long resume=item.optBoolean("isLive")?0:item.optLong("resumeAt",resumePosition(playingSource));if(item.optBoolean("isLive"))player.setMediaItem(media.build());else player.setMediaItem(media.build(),Math.max(0,resume));if(resume>0)android.util.Log.i("NicoStreamPlayback","RESUME_REQUEST_MS="+resume);player.prepare();player.play();showControls();pauseButton.requestFocus();
         final boolean[] playbackVerified={false};
-        Runnable tick=new Runnable(){public void run(){if(!alive||player!=current)return;long duration=current.getDuration(),pos=current.getCurrentPosition();if(playingStarted&&System.currentTimeMillis()-lastProgressSave>=5000)savePlayback(false);if(playingStarted&&current.getVideoFormat()!=null&&pos>=5000&&!playbackVerified[0]){playbackVerified[0]=true;android.util.Log.i("NicoStreamPlayback","PROGRESS_MS="+pos+" VIDEO="+(current.getVideoFormat()!=null)+" AUDIO="+(current.getAudioFormat()!=null));}clock.setText(time(pos)+(duration>0?" / "+time(duration):" · DIRETTA"));if(duration>0&&!seeking)seek.setProgress((int)(pos*1000/duration));pauseButton.setText(current.isPlaying()?"Ⅱ Pausa":"▶ Riprendi");if(System.currentTimeMillis()>controlUntil&&current.isPlaying()&&!seeking&&!seek.hasFocus())transport.setVisibility(View.GONE);main.postDelayed(this,500);}};main.post(tick);
-        main.postDelayed(()->{if(alive&&player==current&&current.getPlaybackState()==Player.STATE_BUFFERING&&current.getCurrentPosition()==0){details(item);showError("La sorgente non risponde. Prova un’altra sorgente dal catalogo.");}},45000);
+        Runnable tick=new Runnable(){public void run(){if(!alive||player!=current)return;long duration=current.getDuration(),pos=current.getCurrentPosition();if(live!=null&&live.update(android.os.SystemClock.elapsedRealtime(),current.isPlaying(),current.getPlayWhenReady()&&current.getPlaybackState()==Player.STATE_BUFFERING)){retryProgramLive(live,"BUFFER_TIMEOUT");return;}if(playingStarted&&System.currentTimeMillis()-lastProgressSave>=5000)savePlayback(false);if(playingStarted&&current.getVideoFormat()!=null&&pos>=5000&&!playbackVerified[0]){playbackVerified[0]=true;android.util.Log.i("NicoStreamPlayback","PROGRESS_MS="+pos+" VIDEO="+(current.getVideoFormat()!=null)+" AUDIO="+(current.getAudioFormat()!=null));}clock.setText(time(pos)+(duration>0?" / "+time(duration):" · DIRETTA"));if(duration>0&&!seeking)seek.setProgress((int)(pos*1000/duration));pauseButton.setText(current.isPlaying()?"Ⅱ Pausa":"▶ Riprendi");if(System.currentTimeMillis()>controlUntil&&current.isPlaying()&&!seeking&&!seek.hasFocus())transport.setVisibility(View.GONE);main.postDelayed(this,500);}};main.post(tick);
+        main.postDelayed(()->{if(live==null&&alive&&player==current&&current.getPlaybackState()==Player.STATE_BUFFERING&&current.getCurrentPosition()==0){details(item);showError("La sorgente non risponde. Prova un’altra sorgente dal catalogo.");}},45000);
     }
     String time(long ms){long s=Math.max(0,ms/1000);return s>=3600?String.format(Locale.ROOT,"%d:%02d:%02d",s/3600,s/60%60,s%60):String.format(Locale.ROOT,"%d:%02d",s/60,s%60);}
     void togglePlay(){if(player!=null){if(player.isPlaying())player.pause();else player.play();showControls();}}
@@ -1234,7 +1318,7 @@ public class MainActivity extends Activity {
             .setPositiveButton("Esci",(dialog,which)->finish()).show();
     }
     @Override public void onBackPressed(){if(marvelDetail&&(seriesScreen!=null||screen.equals("details"))){marvelDetail=false;showMarvelGuide();return;}if(screen.equals("search")&&marvelSearch){cancelSearch();marvelSearch=false;showMarvelGuide();return;}if(screen.equals("search")){cancelSearch();section=searchBackSection;catalogTitle=searchBackTitle;items=searchBackItems;home();}else if(screen.equals("web")){if(automaticEpisode!=null){automaticEpisode=null;home();}else if(webCustomView!=null)closeWebFullscreen();else if(browser!=null&&browser.canGoBack())browser.goBack();else home();}else if(screen.equals("loading")){cancelJob();home();}else if(screen.equals("player")){if(selected!=null&&(selected.optBoolean("localBrowserSession")||selected.optString("addonId").equals("plugin.video.nikod.toonitalia")||selected.optString("addonId").equals("plugin.video.nikod.programfeed")))home();else details(selected);}else if(!screen.equals("home")){home();}else if(section.equals("Scopri")){backFromDiscover();}else if(!history.isEmpty()){previous();}else{section="Scopri";discoverScrollY=0;focusItem="";home();}}
-    @Override protected void onPause(){if(opening!=null&&opening.visible())opening.dismiss();main.removeCallbacks(programHomeRefresh);if(seriesScreen!=null)seriesScreen.setActive(false);if(heroCarousel!=null)heroCarousel.setActive(false);savePlayback(true);super.onPause();if(player!=null)player.pause();if(browser!=null)browser.onPause();}
+    @Override protected void onPause(){if(liveRecovery!=null&&(liveRecovery.pending||screen.equals("loading"))){cancelJob();home();}if(opening!=null&&opening.visible())opening.dismiss();main.removeCallbacks(programHomeRefresh);if(seriesScreen!=null)seriesScreen.setActive(false);if(heroCarousel!=null)heroCarousel.setActive(false);savePlayback(true);super.onPause();if(player!=null)player.pause();if(browser!=null)browser.onPause();}
     @Override protected void onResume(){super.onResume();main.removeCallbacks(programHomeRefresh);main.post(programHomeRefresh);if(seriesScreen!=null)seriesScreen.setActive(true);if(updates!=null)updates.onResume();if(heroCarousel!=null)heroCarousel.setActive(opening==null||!opening.visible());if(browser!=null)browser.onResume();}
-    @Override protected void onDestroy(){if(toonArtwork!=null)toonArtwork.close();if(seriesScreen!=null){seriesScreen.close();seriesScreen=null;}if(searchScreen!=null){searchScreen.close();searchScreen=null;}if(posterBadges!=null)posterBadges.close();if(updates!=null)updates.close();if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}savePlayback(true);alive=false;cancelJob();if(browser!=null){try{ServiceWorkerController.getInstance().setServiceWorkerClient(null);}catch(RuntimeException ignored){}browser.destroy();browser=null;}if(player!=null){player.release();player=null;}main.removeCallbacksAndMessages(null);worker.shutdown();artworkWorker.shutdownNow();artworkCache.evictAll();super.onDestroy();}
+    @Override protected void onDestroy(){if(toonArtwork!=null)toonArtwork.close();if(seriesScreen!=null){seriesScreen.close();seriesScreen=null;}if(searchScreen!=null){searchScreen.close();searchScreen=null;}if(posterBadges!=null)posterBadges.close();if(updates!=null)updates.close();if(heroCarousel!=null){heroCarousel.dispose();heroCarousel=null;}savePlayback(true);alive=false;cancelJob();if(browser!=null){try{ServiceWorkerController.getInstance().setServiceWorkerClient(null);}catch(RuntimeException ignored){}browser.destroy();browser=null;}if(player!=null){player.release();player=null;}main.removeCallbacksAndMessages(null);worker.shutdown();diagnosticsWorker.shutdownNow();artworkWorker.shutdownNow();artworkCache.evictAll();super.onDestroy();}
 }

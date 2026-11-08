@@ -35,7 +35,14 @@ final class SettingsScreen {
                 row("Aggiorna domini sorgenti","Verifica gli indirizzi correnti dei cataloghi",()->app.refreshSourceIndex(true,()->Toast.makeText(app,app.sourceIndexWarning?"Uso l’ultima copia valida":"Sorgenti aggiornate",Toast.LENGTH_LONG).show()));content.addView(app.text("Gli indirizzi si aggiornano automaticamente. Se la rete non risponde, conserviamo l’ultima copia valida.",12,app.MUTED));break;
             case 3:
                 boolean authorized=!app.prefs.getString("serverKey","").isEmpty();content.addView(app.text(authorized?"Dispositivo autorizzato":"Dispositivo da autorizzare",14,app.MINT));content.addView(app.text(EngineAccess.SERVER,12,app.MUTED));app.space(content,12);
-                row(authorized?"Modifica chiave di accesso":"Autorizza dispositivo","La chiave resta salvata solo su questo dispositivo",app::editEngineAccess);content.addView(app.text("Il server è già configurato. La connessione è automatica all’apertura.",12,app.MUTED));break;
+                row(authorized?"Modifica chiave di accesso":"Autorizza dispositivo","La chiave resta salvata solo su questo dispositivo",app::editEngineAccess);
+                boolean diagnostics=app.prefs.getBoolean("sharePlaybackDiagnostics",false);
+                row("Diagnostica dirette · "+(diagnostics?"Attiva":"Disattivata"),
+                    "Invia alla VPS esito, errori e tentativi di Program Feed, senza titoli, URL o identificativi della TV.",()->{
+                        app.prefs.edit().putBoolean("sharePlaybackDiagnostics",!diagnostics).apply();
+                        selected=-1;show(index);options.get(options.size()-1).requestFocus();
+                    });
+                content.addView(app.text("Il server è già configurato. La connessione è automatica all’apertura.",12,app.MUTED));break;
             default:content.addView(app.title("NicoFlix",30));content.addView(app.text("Versione "+BuildConfig.VERSION_NAME,14,app.MINT));content.addView(app.text("Film, serie e dirette. Pensata per il tuo telecomando.",14,app.MUTED));break;
         }
     }

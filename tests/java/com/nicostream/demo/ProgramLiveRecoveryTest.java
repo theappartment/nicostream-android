@@ -1,0 +1,48 @@
+package com.nicostream.demo;
+
+import androidx.media3.common.PlaybackException;
+import org.json.JSONObject;
+import org.junit.Test;
+import static org.junit.Assert.*;
+
+public class ProgramLiveRecoveryTest {
+    @Test public void recognizesProgramFeedThroughTheVpsCompactRoute() throws Exception {
+        JSONObject route = new JSONObject().put("isLive", true)
+            .put("addonId", "plugin.video.nikod.programfeed").put("url", "/v1/route/compact");
+        assertTrue(ProgramLiveRecovery.supports(route));
+        assertFalse(ProgramLiveRecovery.supports(route.put("isLive", false)));
+    }
+
+    @Test public void retriesIoButNotDecoderErrors() {
+        assertTrue(ProgramLiveRecovery.retryable(PlaybackException.ERROR_CODE_IO_UNSPECIFIED));
+        assertFalse(ProgramLiveRecovery.retryable(PlaybackException.ERROR_CODE_DECODING_FAILED));
+    }
+
+    @Test public void capsConsecutiveAttemptsAndResetsAfterStablePlayback() {
+        ProgramLiveRecovery recovery = new ProgramLiveRecovery(new JSONObject(), "Formula 1");
+        assertEquals(2000, recovery.nextDelay());
+        assertEquals(5000, recovery.nextDelay());
+        assertEquals(10000, recovery.nextDelay());
+        assertEquals(-1, recovery.nextDelay());
+        recovery.update(1, true, false);
+        recovery.update(30001, true, false);
+        assertEquals(2000, recovery.nextDelay());
+    }
+
+    @Test public void initialResolutionPinsTheFirstValidTitle() {
+        ProgramLiveRecovery recovery = new ProgramLiveRecovery(new JSONObject(), "");
+        assertFalse(recovery.acceptTitle(""));
+        assertTrue(recovery.acceptTitle("Internazionale x Como"));
+        assertFalse(recovery.acceptTitle("Another event"));
+    }
+
+    @Test public void requiresContinuousBufferingAndVerifiesResolvedTitle() {
+        ProgramLiveRecovery recovery = new ProgramLiveRecovery(new JSONObject(), "Formula 1");
+        assertFalse(recovery.update(1, false, true));
+        assertFalse(recovery.update(35000, false, false));
+        assertFalse(recovery.update(36000, false, true));
+        assertTrue(recovery.update(71000, false, true));
+        assertTrue(recovery.acceptTitle("Formula 1"));
+        assertFalse(recovery.acceptTitle("Another event"));
+    }
+}

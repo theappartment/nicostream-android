@@ -1,5 +1,5 @@
-NicoFlix 0.11.2
+NicoFlix 0.11.3
 
-- Righe per genere in Home, dopo Aggiunti di recente e prima di Avengers: Doomsday.
-- Film e serie TV si alternano quando entrambi sono disponibili.
-- La riga Azione raccoglie anche i titoli di Action & Adventure.
+- Program Feed ritenta automaticamente l’apertura e la riconnessione delle dirette quando la sorgente non risponde.
+- Dopo tre tentativi, il comando Riprova riapre lo stesso evento.
+- Diagnostica facoltativa delle dirette in Impostazioni → Connessione, disattivata di default.
